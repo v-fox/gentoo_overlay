@@ -1,0 +1,558 @@
+DIB Engine: Add clipping on xxxBlt and AlphaBlend
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/bitblt.c   |  332 +++++++++++++++++++++++++++++++++++++------
+ dlls/winedib.drv/clipping.c |   42 +++++
+ dlls/winedib.drv/dc.c       |   14 ++
+ dlls/winedib.drv/dibdrv.h   |    6 +
+ 4 files changed, 341 insertions(+), 53 deletions(-)
+
+diff --git a/dlls/winedib.drv/bitblt.c b/dlls/winedib.drv/bitblt.c
+index c0227a0..05c9392 100644
+--- a/dlls/winedib.drv/bitblt.c
++++ b/dlls/winedib.drv/bitblt.c
+@@ -33,6 +33,26 @@ static inline void intSwap(int *a, int *b)
+     *b = tmp;
+ }
+ 
++static inline void setRect(RECT *r, int x1, int y1, int x2, int y2)
++{
++    r->left   = x1;
++    r->top    = y1;
++    r->right  = x2;
++    r->bottom = y2;
++}
++
++static inline void setPoint(POINT *p, int x, int y)
++{
++    p->x = x;
++    p->y = y;
++}
++
++static inline void setSize(SIZE *sz, int cx, int cy)
++{
++    sz->cx = cx;
++    sz->cy = cy;
++}
++
+ /* clips a source and destination areas to their respective clip rectangles
+    returning both source and dest modified; result is TRUE if clipping
+    leads to a non null rectangle, FALSE otherwise */
+@@ -130,13 +150,158 @@ static BOOL BitBlt_ClipAreas(POINT *ps, POINT *pd, SIZE *sz, RECT*srcClip, RECT*
+    leads to a non null rectangle, FALSE otherwise */
+ static BOOL StretchBlt_ClipAreas(POINT *ps, POINT *pd, SIZE *szSrc, SIZE *szDst, RECT*srcClip, RECT*dstClip)
+ {
+-    ONCE(FIXME("TO DO\n"));
++    int xs1, ys1, xs2, ys2;
++    int xsc1, ysc1, xsc2, ysc2;
++    int xd1, yd1, xd2, yd2;
++    int xdc1, ydc1, xdc2, ydc2;
++    int ws, hs, wd, hd, dx, dy;
++    int mulh, divh, mulv, divv;
++    
++    /* extract sizes */
++    ws = szSrc->cx; hs = szSrc->cy;
++    wd = szDst->cx; hd = szDst->cy;
++    
++    /* if sizes null or negative, just return false */
++    /* FIXME : add support for mirror stretch */
++    if(ws <= 0 || hs <= 0 || wd <= 0 || hd <= 0)
++        return FALSE;
++        
++    /* stores scaling factors from source rect to dest one */
++    mulh = wd; divh = ws;
++    mulv = hd; divv = hs;
++        
++    /* extract dest area data */
++    xd1 = pd->x;
++    yd1 = pd->y;
++    xd2 = xd1 + wd;
++    yd2 = yd1 + hd;
++    
++    /* extract source data */
++    xs1 = ps->x;
++    ys1 = ps->y;
++    xs2 = xs1 + ws;
++    ys2 = ys1 + hs;
++        
++    /* if source clip area is not null, do first clipping on it */
++    if(srcClip)
++    {
++        /* extract source clipping area */
++        xsc1 = srcClip->left;
++        ysc1 = srcClip->top;
++        xsc2 = srcClip->right;
++        ysc2 = srcClip->bottom;
++        
++        /* order clip area rectangle points */
++        if(xsc1 > xsc2) intSwap(&xsc1, &xsc2);
++        if(ysc1 > ysc2) intSwap(&ysc1, &ysc2);
++        
++        /* clip on source clipping start point */
++        if(xs1 < xsc1) { dx = xsc1 - xs1; ws -= dx; xd1 += MulDiv(dx, mulh, divh); xs1 = xsc1; }
++        if(ys1 < ysc1) { dy = ysc1 - ys1; hs -= dy; yd1 += MulDiv(dy, mulv, divv); ys1 = ysc1; }
++        
++        /* clip on source clipping end point */
++        if(xs2 > xsc2) { dx = xs2 - xsc2; ws -= dx; xd2 -= MulDiv(dx, mulh, divh); xs2 = xsc2; }
++        if(ys2 > ysc2) { dy = ys2 - ysc2; hs -= dy; yd2 -= MulDiv(dy, mulv, divv); ys2 = ysc2; }
++        
++        /* if already zero area, return false */
++        if(ws <= 0 || hs <= 0)
++            return FALSE;
++        wd = xd2 - xd1;
++        hd = yd2 - yd1;
++    }
++    /* now do clipping on destination area */
+ 
++    if(dstClip)
++    {    
++        /* extract destination clipping area */
++        xdc1 = dstClip->left;
++        ydc1 = dstClip->top;
++        xdc2 = dstClip->right;
++        ydc2 = dstClip->bottom;
++        
++        /* order clip area rectangle points */
++        if(xdc1 > xdc2) intSwap(&xdc1, &xdc2);
++        if(ydc1 > ydc2) intSwap(&ydc1, &ydc2);
++            
++        /* clip on dest clipping start point */
++        if(xd1 < xdc1) { dx = xdc1 - xd1; wd -= dx; xs1 += MulDiv(dx, divh, mulh); xd1 = xdc1; }
++        if(yd1 < ydc1) { dy = ydc1 - yd1; hd -= dy; ys1 += MulDiv(dy, divv, mulv); yd1 = ydc1; }
++        
++        /* clip on dest clipping end point */
++        if(xd2 > xdc2) { dx = xd2 - xdc2; wd -= dx; xs2 -= MulDiv(dx, divh, mulh); xd2 = xdc2; }
++        if(yd2 > ydc2) { dy = yd2 - ydc2; hd -= dy; ys2 -= MulDiv(dy, divv, mulv); yd2 = ydc2; }
++        
++        /* if already zero area, return false */
++        if(wd <= 0 || hd <= 0)
++            return FALSE;
++            
++        ws = xs2 - xs1;
++        hs = ys2 - ys1;
++    }
++        
++    /* sets clipped/translated points and sizes and returns TRUE */
++    ps->x = xs1; ps->y = ys1;
++    pd->x = xd1; pd->y = yd1;
++    szSrc->cx = ws; szSrc->cy = hs;
++    szDst->cx = wd; szDst->cy = hd;
++    
+     return TRUE;
+ 
+ }
+ 
+ /***********************************************************************
++ *           _DIBDRV_InternalAlphaBlend
++ */
++BOOL _DIBDRV_InternalAlphaBlend( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst, INT widthDst, INT heightDst,
++                        DIBDRVPHYSDEV *physDevSrc, INT xSrc, INT ySrc, INT widthSrc, INT heightSrc,
++                        BLENDFUNCTION blendfn)
++{
++    BOOL res;
++    POINT pd, ps;
++    SIZE szSrc, szDst;
++    int iRec;
++    RECT dstClip, srcClip;
++
++    /* first clip on physical DC sizes */
++    setPoint(&pd, xDst, yDst);
++    setPoint(&ps, xSrc, ySrc);
++    setSize(&szDst, widthDst, heightDst);
++    setSize(&szSrc, widthSrc, heightSrc);
++    setRect(&dstClip, 0, 0, physDevDst->physBitmap.width, physDevDst->physBitmap.height);
++    if(physDevSrc)
++    {
++        setRect(&srcClip, 0, 0, physDevSrc->physBitmap.width, physDevSrc->physBitmap.height);
++        res = StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, &srcClip, &dstClip);
++    }
++    else
++        res = StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, 0, &dstClip);
++    if(!res)
++        return FALSE;
++    xDst = pd.x; yDst = pd.y;
++    xSrc = ps.x; ySrc = ps.y;
++    widthDst = szDst.cx; heightDst = szDst.cy;
++    widthSrc = szSrc.cx; heightSrc = szSrc.cy;
++    
++    /* then, do blitting for each dest clip area (no clipping on source) */
++    res = FALSE;
++    for(iRec = 0; iRec < physDevDst->regionRectCount; iRec++)
++    {
++        RECT *r = physDevDst->regionRects + iRec;
++        setRect(&dstClip, r->left, r->top, r->right, r->bottom);
++        setPoint(&pd, xDst, yDst);
++        setPoint(&ps, xSrc, ySrc);
++        setSize(&szDst, widthDst, heightDst);
++        setSize(&szSrc, widthSrc, heightSrc);
++        if(!StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, 0, &dstClip))
++            continue;
++        if(physDevDst->physBitmap.funcs->AlphaBlend(physDevDst, pd.x, pd.y, szDst.cx, szDst.cy,
++                                                    physDevSrc, ps.x, ps.y, szSrc.cx, szSrc.cy, blendfn))
++            res = TRUE;
++    }
++    return res;
++}
++
++/***********************************************************************
+  *           DIBDRV_AlphaBlend
+  */
+ BOOL DIBDRV_AlphaBlend( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst, INT widthDst, INT heightDst,
+@@ -145,6 +310,11 @@ BOOL DIBDRV_AlphaBlend( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst, INT width
+ {
+     BOOL res;
+     
++    POINT pd = {xDst, yDst};
++    POINT ps = {xSrc, ySrc};
++    SIZE szDst = {widthDst, heightDst};
++    SIZE szSrc = {widthSrc, heightSrc};
++
+     MAYBE(TRACE("physDevDst:%p(%s%s), xDst:%d, yDst:%d, widthDst:%d, heightDst:%d, physDevSrc:%p(%s%s), xSrc:%d, ySrc:%d, widthSrc:%d, heightSrc:%d\n",
+           physDevDst, physDevDst->hasDIB ? "DIB-" : "DDB", physDevDst->hasDIB ? _DIBDRVBITMAP_GetFormatName(&physDevDst->physBitmap) : "",
+           xDst, yDst, widthDst, heightDst,
+@@ -177,16 +347,24 @@ BOOL DIBDRV_AlphaBlend( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst, INT width
+     {
+         /* DIB section selected in dest DC, use DIB Engine */
+         MAYBE(TRACE("Blending DIB->DIB\n"));
+-        res = physDevDst->physBitmap.funcs->AlphaBlend(physDevDst, xDst, yDst, widthDst, heightDst,
+-                                                       physDevSrc, xSrc, ySrc, widthSrc, heightSrc, blendfn);
++        res = _DIBDRV_InternalAlphaBlend(physDevDst, xDst, yDst, widthDst, heightDst,
++                                         physDevSrc, xSrc, ySrc, widthSrc, heightSrc, blendfn);
+     }
+     else
+     {
+         /* DDB selected on dest DC -- must double-convert */
+         HBITMAP tmpDIB, stock;
+         HDC tmpDC;
++        RECT srcClip = {0, 0, physDevSrc->physBitmap.width, physDevSrc->physBitmap.height};
+         MAYBE(TRACE("Blending DIB->DDB\n"));
+         
++        /* clip blit area */
++        res = StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, &srcClip, 0);
++        if(!res)
++            goto fin;
++        xDst = pd.x; yDst = pd.y; widthDst = szDst.cx; heightDst = szDst.cy; 
++        xSrc = ps.x; ySrc = ps.y; widthSrc = szSrc.cx; heightSrc = szSrc.cy;
++
+         /* converts dest DDB onto a temporary DIB -- just the needed part */
+         tmpDIB = _DIBDRV_ConvertDevDDBtoDIB(physDevDst->hdc, physDevSrc->hdc, xDst, yDst, widthDst, heightDst);
+         if(!tmpDIB)
+@@ -232,8 +410,55 @@ fin:
+ }
+ 
+ /***********************************************************************
+- *           DIBDRV_BitBlt
++ *           _DIBDRV_InternalBitBlt
+  */
++BOOL _DIBDRV_InternalBitBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
++                    INT width, INT height, DIBDRVPHYSDEV *physDevSrc,
++                    INT xSrc, INT ySrc, DWORD rop )
++{
++    BOOL res;
++    POINT pd, ps;
++    SIZE sz;
++    int iRec;
++    RECT dstClip, srcClip;
++
++    /* first clip on physical DC sizes */
++    setPoint(&pd, xDst, yDst);
++    setPoint(&ps, xSrc, ySrc);
++    setSize(&sz, width, height);
++    setRect(&dstClip, 0, 0, physDevDst->physBitmap.width, physDevDst->physBitmap.height);
++    if(physDevSrc)
++    {
++        setRect(&srcClip, 0, 0, physDevSrc->physBitmap.width, physDevSrc->physBitmap.height);
++        res = BitBlt_ClipAreas(&ps, &pd, &sz, &srcClip, &dstClip);
++    }
++    else
++        res = BitBlt_ClipAreas(&ps, &pd, &sz, 0, &dstClip);
++    if(!res)
++        return FALSE;
++    xDst = pd.x; yDst = pd.y;
++    xSrc = ps.x; ySrc = ps.y;
++    width = sz.cx; height = sz.cy;
++    
++    /* then, do blitting for each dest clip area (no clipping on source) */
++    res = FALSE;
++    for(iRec = 0; iRec < physDevDst->regionRectCount; iRec++)
++    {
++        RECT *r = physDevDst->regionRects + iRec;
++        setRect(&dstClip, r->left, r->top, r->right, r->bottom);
++        setPoint(&pd, xDst, yDst);
++        setPoint(&ps, xSrc, ySrc);
++        setSize(&sz, width, height);
++        if(!BitBlt_ClipAreas(&ps, &pd, &sz, 0, &dstClip))
++            continue;
++        if(physDevDst->physBitmap.funcs->BitBlt(physDevDst, pd.x, pd.y, sz.cx, sz.cy, physDevSrc, ps.x, ps.y, rop))
++            res = TRUE;
++    }
++    return res;
++}
++
++/***********************************************************************
++ *           DIBDRV_BitBlt                                             */
+ BOOL DIBDRV_BitBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                     INT width, INT height, DIBDRVPHYSDEV *physDevSrc,
+                     INT xSrc, INT ySrc, DWORD rop )
+@@ -254,26 +479,13 @@ BOOL DIBDRV_BitBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+     if(physDevDst->hasDIB)
+     {
+         /* DIB section selected in dest DC, use DIB Engine */
+-
+         /* clip blit area */
+         RECT dstClip = {0, 0, physDevDst->physBitmap.width, physDevDst->physBitmap.height};
+         
+         if(!physDevSrc || physDevSrc->hasDIB)
+         {
+-            /* clip blit area */
+-            if(physDevSrc)
+-            {
+-                RECT srcClip = {0, 0, physDevSrc->physBitmap.width, physDevSrc->physBitmap.height};
+-                res = BitBlt_ClipAreas(&ps, &pd, &sz, &srcClip, &dstClip);
+-            }
+-            else
+-                res = BitBlt_ClipAreas(&ps, &pd, &sz, 0, &dstClip);
+-            if(!res)
+-                goto noBlt2;
+-            xDst = pd.x; yDst = pd.y; width = sz.cx; height = sz.cy; xSrc = ps.x; ySrc = ps.y;
+-
+             /* source is null or has a DIB, no need to convert anyting */
+-            res = physDevDst->physBitmap.funcs->BitBlt(physDevDst, xDst, yDst, width, height, physDevSrc, xSrc, ySrc, rop);
++            res = _DIBDRV_InternalBitBlt(physDevDst, xDst, yDst, width, height, physDevSrc, xSrc, ySrc, rop);
+         }
+         else
+         {
+@@ -309,8 +521,7 @@ BOOL DIBDRV_BitBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                     goto noBlt1;
+                 }
+                 SelectObject(physDevSrc->hdc, dib);
+-                res = physDevDst->physBitmap.funcs->BitBlt(physDevDst, xDst, yDst, width, height,
+-                                                           physDevSrc, xSrc, 0, rop);
++                res = _DIBDRV_InternalBitBlt(physDevDst, xDst, yDst, width, height, physDevSrc, xSrc, 0, rop);
+                 SelectObject(physDevSrc->hdc, ddb);
+                 DeleteObject(dib);
+     noBlt1:
+@@ -410,6 +621,58 @@ noBlt3:
+ }
+ 
+ /***********************************************************************
++ *           _DIBDRV_InternalStretchBlt
++ */
++BOOL _DIBDRV_InternalStretchBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
++                    INT widthDst, INT heightDst, DIBDRVPHYSDEV *physDevSrc,
++                    INT xSrc, INT ySrc, int widthSrc, int heightSrc, DWORD rop )
++{
++    BOOL res;
++    POINT pd, ps;
++    SIZE szSrc, szDst;
++    int iRec;
++    RECT dstClip, srcClip;
++
++    /* first clip on physical DC sizes */
++    setPoint(&pd, xDst, yDst);
++    setPoint(&ps, xSrc, ySrc);
++    setSize(&szDst, widthDst, heightDst);
++    setSize(&szSrc, widthSrc, heightSrc);
++    setRect(&dstClip, 0, 0, physDevDst->physBitmap.width, physDevDst->physBitmap.height);
++    if(physDevSrc)
++    {
++        setRect(&srcClip, 0, 0, physDevSrc->physBitmap.width, physDevSrc->physBitmap.height);
++        res = StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, &srcClip, &dstClip);
++    }
++    else
++        res = StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, 0, &dstClip);
++    if(!res)
++        return FALSE;
++    xDst = pd.x; yDst = pd.y;
++    xSrc = ps.x; ySrc = ps.y;
++    widthDst = szDst.cx; heightDst = szDst.cy;
++    widthSrc = szSrc.cx; heightSrc = szSrc.cy;
++    
++    /* then, do blitting for each dest clip area (no clipping on source) */
++    res = FALSE;
++    for(iRec = 0; iRec < physDevDst->regionRectCount; iRec++)
++    {
++        RECT *r = physDevDst->regionRects + iRec;
++        setRect(&dstClip, r->left, r->top, r->right, r->bottom);
++        setPoint(&pd, xDst, yDst);
++        setPoint(&ps, xSrc, ySrc);
++        setSize(&szDst, widthDst, heightDst);
++        setSize(&szSrc, widthSrc, heightSrc);
++        if(!StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, 0, &dstClip))
++            continue;
++        if(physDevDst->physBitmap.funcs->StretchBlt(physDevDst, pd.x, pd.y, szDst.cx, szDst.cy,
++                                                    physDevSrc, ps.x, ps.y, szSrc.cx, szSrc.cy, rop))
++            res = TRUE;
++    }
++    return res;
++}
++
++/***********************************************************************
+  *           DIBDRV_StretchBlt
+  */
+ BOOL DIBDRV_StretchBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+@@ -439,38 +702,15 @@ BOOL DIBDRV_StretchBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+     {
+         /* DIB section selected in dest DC, use DIB Engine */
+ 
+-        /* clip blit area */
+-        RECT dstClip = {0, 0, physDevDst->physBitmap.width, physDevDst->physBitmap.height};
+-        
+         if(!physDevSrc || physDevSrc->hasDIB)
+         {
+-            /* clip blit area */
+-            if(physDevSrc)
+-            {
+-                RECT srcClip = {0, 0, physDevSrc->physBitmap.width, physDevSrc->physBitmap.height};
+-                res = StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, &srcClip, &dstClip);
+-            }
+-            else
+-                res = StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, 0, &dstClip);
+-            if(!res)
+-                goto noBlt2;
+-            xDst = pd.x; yDst = pd.y; widthDst = szDst.cx; heightDst = szDst.cy; 
+-            xSrc = ps.x; ySrc = ps.y; widthSrc = szSrc.cx; heightSrc = szSrc.cy;
+-
+             /* source is null or has a DIB, no need to convert anyting */
+-            res = physDevDst->physBitmap.funcs->StretchBlt(physDevDst, xDst, yDst, widthDst, heightDst, physDevSrc, xSrc, ySrc, widthSrc, heightSrc, rop);
++            res = _DIBDRV_InternalStretchBlt(physDevDst, xDst, yDst, widthDst, heightDst, physDevSrc, xSrc, ySrc, widthSrc, heightSrc, rop);
+         }
+         else
+         {
+             /* source is a DDB, must convert it to DIB */
+ 
+-            /* don't clip on source */            
+-            res = StretchBlt_ClipAreas(&ps, &pd, &szSrc, &szDst, 0, &dstClip);
+-            if(!res)
+-                goto noBlt2;
+-            xDst = pd.x; yDst = pd.y; widthDst = szDst.cx; heightDst = szDst.cy; 
+-            xSrc = ps.x; ySrc = ps.y; widthSrc = szSrc.cx; heightSrc = szSrc.cy;
+-
+             /* we must differentiate from 2 cases :
+                1) source DC is a memory DC
+                2) source DC is a device DC */
+@@ -495,8 +735,8 @@ BOOL DIBDRV_StretchBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                     goto noBlt1;
+                 }
+                 SelectObject(physDevSrc->hdc, dib);
+-                res = physDevDst->physBitmap.funcs->StretchBlt(physDevDst, xDst, yDst, widthDst, heightDst,
+-                                                           physDevSrc, xSrc, 0, widthSrc, heightSrc, rop);
++                res = _DIBDRV_InternalStretchBlt(physDevDst, xDst, yDst, widthDst, heightDst,
++                                                 physDevSrc, xSrc, 0, widthSrc, heightSrc, rop);
+                 SelectObject(physDevSrc->hdc, ddb);
+                 DeleteObject(dib);
+     noBlt1:
+diff --git a/dlls/winedib.drv/clipping.c b/dlls/winedib.drv/clipping.c
+index 81dec25..ed10b92 100644
+--- a/dlls/winedib.drv/clipping.c
++++ b/dlls/winedib.drv/clipping.c
+@@ -25,22 +25,50 @@
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+ 
+-
+ /***********************************************************************
+  *           DIBDRV_SetDeviceClipping
+  */
+ void DIBDRV_SetDeviceClipping( DIBDRVPHYSDEV *physDev, HRGN vis_rgn, HRGN clip_rgn )
+ {
++    RGNDATA *data;
++    DWORD size;
++    int iRect;
++
+     MAYBE(TRACE("physDev:%p, vis_rgn:%p, clip_rgn:%p\n", physDev, vis_rgn, clip_rgn));
+ 
+-    if(physDev->hasDIB)
++    /* sets the region for X11 driver anyways... we may change bitmap later on */
++    _DIBDRV_GetDisplayDriver()->pSetDeviceClipping(physDev->X11PhysDev, vis_rgn, clip_rgn);
++    
++    /* then we set the region for DIB engine, same reason */
++
++    CombineRgn( physDev->region, vis_rgn, clip_rgn, clip_rgn ? RGN_AND : RGN_COPY );
++
++    /* get region rectangles */
++    if(!(size = GetRegionData(physDev->region, 0, NULL)))
++        return;
++    data = HeapAlloc(GetProcessHeap(), 0, size);
++    if (!GetRegionData(physDev->region, size, data))
+     {
+-        /* DIB section selected in, use DIB Engine */
+-        ONCE(FIXME("STUB\n"));
++        HeapFree( GetProcessHeap(), 0, data );
++        return;
+     }
+-    else
++    
++    /* frees any previous regions rectangles in DC */
++    if(physDev->regionData)
++        HeapFree(GetProcessHeap(), 0, physDev->regionData);
++        
++    /* sets the rectangles on physDev */
++    physDev->regionData = data;
++    physDev->regionRects = (RECT *)data->Buffer;
++    physDev->regionRectCount = data->rdh.nCount;
++    
++    if(TRACE_ON(dibdrv))
+     {
+-        /* DDB selected in, use X11 driver */
+-        _DIBDRV_GetDisplayDriver()->pSetDeviceClipping(physDev->X11PhysDev, vis_rgn, clip_rgn);
++        TRACE("Region dump : %d rectangles\n", physDev->regionRectCount);
++        for(iRect = 0; iRect < physDev->regionRectCount; iRect++)
++        {
++            RECT *r = physDev->regionRects + iRect;
++            TRACE("Rect #%03d, x1:%4d, y1:%4d, x2:%4d, y2:%4d\n", iRect, r->left, r->top, r->right, r->bottom);
++        }
+     }
+ }
+diff --git a/dlls/winedib.drv/dc.c b/dlls/winedib.drv/dc.c
+index 6184677..8212d42 100644
+--- a/dlls/winedib.drv/dc.c
++++ b/dlls/winedib.drv/dc.c
+@@ -165,6 +165,12 @@ BOOL DIBDRV_CreateDC( HDC hdc, DIBDRVPHYSDEV **pdev, LPCWSTR driver, LPCWSTR dev
+     
+     /* clears pen and brush */
+     physDev->rop2 = R2_COPYPEN;
++    
++    /* clipping region */
++    physDev->region = CreateRectRgn( 0, 0, 0, 0 );
++    physDev->regionData = NULL;
++    physDev->regionRects = NULL;
++    physDev->regionRectCount = 0;
+ 
+     physDev->backgroundColor = 0;
+     _DIBDRV_CalcAndXorMasks(physDev->rop2, 0, &physDev->backgroundAnd, &physDev->backgroundXor);
+@@ -228,6 +234,14 @@ BOOL DIBDRV_DeleteDC( DIBDRVPHYSDEV *physDev )
+     physDev->brushAnds = NULL;
+     physDev->brushXors = NULL;
+     
++    /* frees clipping region */
++    DeleteObject(physDev->region);
++    if(physDev->regionData)
++        HeapFree(GetProcessHeap(), 0, physDev->regionData);
++    physDev->regionData = NULL;
++    physDev->regionRects = NULL;
++    physDev->regionRectCount = 0;
++
+     /* frees DIB Engine device */
+     HeapFree(GetProcessHeap(), 0, physDev);
+     
+diff --git a/dlls/winedib.drv/dibdrv.h b/dlls/winedib.drv/dibdrv.h
+index c801d96..b0f128e 100644
+--- a/dlls/winedib.drv/dibdrv.h
++++ b/dlls/winedib.drv/dibdrv.h
+@@ -204,6 +204,12 @@ typedef struct _DIBDRVPHYSDEV
+ 
+     /* active ROP2 */
+     INT rop2;
++    
++    /* clipping region and its rectangles */
++    HRGN region;
++    RGNDATA *regionData;
++    RECT *regionRects;
++    int regionRectCount;
+ 
+     /* background color and active ROP2 precalculated
+        AND and XOR values for it */

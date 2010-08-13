@@ -1,0 +1,11 @@
+--- configure.old	2008-04-12 04:32:03.105968942 +0600
++++ configure	2008-04-12 04:32:43.824969142 +0600
+@@ -632,7 +632,7 @@ else
+        coreaudio="no"
+     fi
+ fi # -z $sdl
+-
++sdl_static=no
+ ##########################################
+ # VNC TLS detection
+ if test "$vnc_tls" = "yes" ; then

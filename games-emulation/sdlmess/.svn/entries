@@ -1,0 +1,79 @@
+9
+
+dir
+380
+http://svn.liveforge.org/berkano/trunk/games-emulation/sdlmess
+http://svn.liveforge.org/berkano
+
+
+
+2008-03-22T15:40:28.982757Z
+295
+ben
+
+
+svn:special svn:externals svn:needs-lock
+
+
+
+
+
+
+
+
+
+
+
+3a429e60-251d-0410-826f-ead4734d2cae
+
+files
+dir
+
+sdlmess-0.119.ebuild
+file
+
+
+
+
+2008-03-01T05:44:45.000000Z
+c5d6070d9af1364c61ac1cf234cdfb81
+2007-09-23T18:35:08.363062Z
+225
+yngwin
+
+Manifest
+file
+
+
+
+
+2008-03-28T00:05:45.000000Z
+121c95c0e245abb832a733005bfebc28
+2008-03-22T15:40:28.982757Z
+295
+ben
+
+ChangeLog
+file
+
+
+
+
+2008-03-28T00:05:45.000000Z
+14e19a55862b775917d4577f1574bb60
+2008-03-22T15:40:28.982757Z
+295
+ben
+
+sdlmess-0.123.ebuild
+file
+
+
+
+
+2008-03-28T00:05:45.000000Z
+2a1f0a5484fff159fc49a84aef451d1c
+2008-03-22T15:40:28.982757Z
+295
+ben
+

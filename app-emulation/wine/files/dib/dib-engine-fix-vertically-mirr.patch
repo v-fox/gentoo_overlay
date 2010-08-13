@@ -1,0 +1,103 @@
+DIB Engine: fix vertically mirrored images caused by GetObject() changes
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/convert.c      |   18 ++++++++++--------
+ dlls/winedib.drv/dibdrv.h       |    3 +++
+ dlls/winedib.drv/dibdrvbitmap.c |    5 +++++
+ 3 files changed, 18 insertions(+), 8 deletions(-)
+
+diff --git a/dlls/winedib.drv/convert.c b/dlls/winedib.drv/convert.c
+index 8ee6ecd..5fc7eea 100644
+--- a/dlls/winedib.drv/convert.c
++++ b/dlls/winedib.drv/convert.c
+@@ -51,6 +51,7 @@ HBITMAP _DIBDRV_ConvertDIBtoDDB( HDC hdc, HBITMAP srcBmp, int startScan, int sca
+     HDC tmpHdc;
+     HBITMAP tmpBmp;
+     int res;
++    DIBDRVBITMAP *physBitmap;
+ 
+     /* gets DIBSECTION data from source DIB */
+     if(GetObjectW(srcBmp, sizeof(DIBSECTION), &ds) != sizeof(DIBSECTION))
+@@ -65,19 +66,20 @@ HBITMAP _DIBDRV_ConvertDIBtoDDB( HDC hdc, HBITMAP srcBmp, int startScan, int sca
+     bits = ds.dsBm.bmBits;
+     stride = ((dibWidth * ds.dsBmih.biBitCount +31) &~31) / 8;
+     
+-    /* adjust bits to point at needed starting stripe */
+-    if(dibHeight < 0)
++    /* get physical bitmap -- needed for topdown flag */
++	if( (physBitmap = _BITMAPLIST_Get(srcBmp)) == NULL)
+     {
++        ERR("Couldn't retrieve physical bitmap\n");
++        return 0;
++    }
++    topDown = physBitmap->topdown;
++
++    /* adjust bits to point at needed starting stripe */
++    if(topDown)
+         /* top-down DIB */
+-        topDown = TRUE;
+-        dibHeight = -dibHeight;
+         bits = (BYTE *)bits + startScan * stride;
+-    }
+     else
+-    {
+-        topDown = FALSE;
+         bits = (BYTE *)bits + (dibHeight - startScan - scanLines) * stride;
+-    }
+     
+     /* if requested part is out of source bitmap, returns 0 */
+     if(startScan >= dibHeight)
+diff --git a/dlls/winedib.drv/dibdrv.h b/dlls/winedib.drv/dibdrv.h
+index 72d6b52..e041e35 100644
+--- a/dlls/winedib.drv/dibdrv.h
++++ b/dlls/winedib.drv/dibdrv.h
+@@ -138,6 +138,9 @@ typedef struct _DIBDRVBITMAP
+ {
+     /* bitmap format of dib */
+     DIBFORMAT format;
++    
++    /* topdown flag */
++    BOOL topdown;
+ 
+     /* pointer to top left corner of bitmap */
+     void *bits;
+diff --git a/dlls/winedib.drv/dibdrvbitmap.c b/dlls/winedib.drv/dibdrvbitmap.c
+index eb7d1e2..1b2c959 100644
+--- a/dlls/winedib.drv/dibdrvbitmap.c
++++ b/dlls/winedib.drv/dibdrvbitmap.c
+@@ -202,6 +202,7 @@ BOOL _DIBDRVBITMAP_InitFromBMIH(DIBDRVBITMAP *dib, const BITMAPINFOHEADER *bi, c
+     {
+         /* top-down dib */
+         dib->height = -dib->height;
++        dib->topdown = TRUE;
+     }
+     else
+     {
+@@ -209,6 +210,7 @@ BOOL _DIBDRVBITMAP_InitFromBMIH(DIBDRVBITMAP *dib, const BITMAPINFOHEADER *bi, c
+         /* data->bits always points to the top-left corner and the stride is -ve */
+         dib->bits    = (BYTE*)dib->bits + (dib->height - 1) * dib->stride;
+         dib->stride  = -dib->stride;
++        dib->topdown = FALSE;
+     }
+ 
+     /* gets and stores bitmap format */
+@@ -427,6 +429,8 @@ BOOL _DIBDRVBITMAP_InitFromDibdrvbitmap(DIBDRVBITMAP *dib, const DIBDRVBITMAP *s
+     
+     dib->lightColor = src->lightColor;
+     
++    dib->topdown = src->topdown;
++    
+     if(copy)
+     {
+         int size = dib->height*abs(dib->stride);
+@@ -496,6 +500,7 @@ BOOL _DIBDRVBITMAP_CreateFromDibdrvbitmap(DIBDRVBITMAP *dib, const DIBDRVBITMAP
+     dib->stride = ((width * dib->bitCount +31) &~31) / 8;
+     if(src->stride < 0)
+         dib->stride = -dib->stride;
++    dib->topdown = src->topdown;
+     
+     /* allocates bits for newly created DIB */
+     if(!(dib->bits = HeapAlloc(GetProcessHeap(), 0, height*abs(dib->stride))))

@@ -1,0 +1,30 @@
+dib engine: quick fix for wine-1.2-rc2
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/dib.c |    7 +++++--
+ 1 files changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/dlls/winedib.drv/dib.c b/dlls/winedib.drv/dib.c
+index ae6a5cf..e9ea6e3 100644
+--- a/dlls/winedib.drv/dib.c
++++ b/dlls/winedib.drv/dib.c
+@@ -306,11 +306,14 @@ INT DIBDRV_SetDIBits( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap, UINT startscan,
+     DIBDRVBITMAP *sBmp, *dBmp;
+     DWORD *buf;
+     int iLine;
+-    
++
+     MAYBE(TRACE("physDev:%p, hbitmap:%p, startscan:%d, lines:%d, bits:%p, bmi:%p, coloruse:%d\n",
+         physDev, hbitmap, startscan, lines, bits, info, coloruse));
+ 
+-
++    /* quick fix for wine-1.2-rc1 */
++	if((int)lines < 0)
++	    lines = -lines;
++	    
+     if(GetObjectW(hbitmap, sizeof(DIBSECTION), &ds) == sizeof(DIBSECTION))
+     {
+         /* SetDIBits writes bits to a DIB, so we should use the engine driver */

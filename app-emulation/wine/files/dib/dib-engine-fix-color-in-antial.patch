@@ -1,0 +1,67 @@
+DIB Engine: fix color in antialiased fonts
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/primitives_font.c |   12 ++++++------
+ 1 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/dlls/winedib.drv/primitives_font.c b/dlls/winedib.drv/primitives_font.c
+index a2824a5..c051668 100644
+--- a/dlls/winedib.drv/primitives_font.c
++++ b/dlls/winedib.drv/primitives_font.c
+@@ -69,7 +69,7 @@ void _DIBDRV_freetype_blit_8888(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clip
+                     b = *ptr         & 0xff;
+                     c += MulDiv(r, 255 - *buf, 255) << 16 |
+                          MulDiv(g, 255 - *buf, 255) <<  8 |
+-                         MulDiv(r, 255 - *buf, 255);
++                         MulDiv(b, 255 - *buf, 255);
+                 }
+ #endif
+                 *ptr = c;
+@@ -122,7 +122,7 @@ void _DIBDRV_freetype_blit_32_RGB(DIBDRVPHYSDEV *physDev, int x, int y, RECT *cl
+                     b = *ptr         & 0xff;
+                     c += MulDiv(r, 255 - *buf, 255) << 16 |
+                          MulDiv(g, 255 - *buf, 255) <<  8 |
+-                         MulDiv(r, 255 - *buf, 255);
++                         MulDiv(b, 255 - *buf, 255);
+                 }
+ #endif
+                 *ptr = c;
+@@ -175,7 +175,7 @@ void _DIBDRV_freetype_blit_32_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, RE
+                     b = (pix >> 16) & 0xff;
+                     c += MulDiv(r, 255 - *buf, 255) << 16 |
+                          MulDiv(g, 255 - *buf, 255) <<  8 |
+-                         MulDiv(r, 255 - *buf, 255);
++                         MulDiv(b, 255 - *buf, 255);
+                 }
+ #endif
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+@@ -227,7 +227,7 @@ void _DIBDRV_freetype_blit_24(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRe
+                     b = (pix >> 16) & 0xff;
+                     c += MulDiv(r, 255 - *buf, 255) << 16 |
+                          MulDiv(g, 255 - *buf, 255) <<  8 |
+-                         MulDiv(r, 255 - *buf, 255);
++                         MulDiv(b, 255 - *buf, 255);
+                 }
+ #endif
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+@@ -279,7 +279,7 @@ void _DIBDRV_freetype_blit_16_RGB(DIBDRVPHYSDEV *physDev, int x, int y, RECT *cl
+                     b = (pix >> 16) & 0xff;
+                     c += MulDiv(r, 255 - *buf, 255) << 16 |
+                          MulDiv(g, 255 - *buf, 255) <<  8 |
+-                         MulDiv(r, 255 - *buf, 255);
++                         MulDiv(b, 255 - *buf, 255);
+                 }
+ #endif
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+@@ -331,7 +331,7 @@ void _DIBDRV_freetype_blit_16_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, RE
+                     b = (pix >> 16) & 0xff;
+                     c += MulDiv(r, 255 - *buf, 255) << 16 |
+                          MulDiv(g, 255 - *buf, 255) <<  8 |
+-                         MulDiv(r, 255 - *buf, 255);
++                         MulDiv(b, 255 - *buf, 255);
+                 }
+ #endif
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);

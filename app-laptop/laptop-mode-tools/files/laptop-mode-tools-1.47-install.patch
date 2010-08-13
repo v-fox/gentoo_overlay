@@ -1,0 +1,35 @@
+--- laptop-mode-tools_1.47/install.sh	2009-01-26 21:45:20.000000000 +0200
++++ laptop-mode-tools_1.47.new/install.sh	2009-02-08 20:25:05.000000000 +0200
+@@ -180,16 +180,6 @@ if ( ! $INSTALL -m 744 man/* "$DESTDIR/$
+ fi
+ 
+ 
+-# Install pm-utils hook only if pm-utils config dir is present, or force the
+-# install if we have a DESTDIR.
+-if [ -n "$DESTDIR" -o -d "$DESTDIR/etc/pm/sleep.d" ] ; then
+-	if ( ! $INSTALL -m 755 etc/pm/sleep.d/99laptop-mode "$DESTDIR/etc/pm/sleep.d" ) ; then
+-		echo "$0: Failed to install 99-laptop-mode into /etc/pm/sleep.d. Installation failed."
+-		exit 36
+-	fi
+-fi
+-
+-
+ ACPI_DONE=0
+ APM_DONE=0
+ PMU_DONE=0
+@@ -230,6 +220,15 @@ if [ "$APM" = "force" ] || [ "$APM" = "e
+ fi
+ 
+ if [ "$PMU" = "force" ] || [ "$PMU" = "enabled" -a -d /proc/pmu -a -d /etc/power ] ; then
++	# Install pm-utils hook only if pm-utils config dir is present, or force the
++	# install if we have a DESTDIR.
++	if [ -d "$DESTDIR/etc/pm/sleep.d" ] ; then
++		if ( ! $INSTALL -m 755 etc/pm/sleep.d/99laptop-mode "$DESTDIR/etc/pm/sleep.d" ) ; then
++			echo "$0: Failed to install 99-laptop-mode into $DESTDIR/etc/pm/sleep.d. Installation failed."
++			exit 36
++		fi
++	fi
++
+ 	$INSTALL -d -m 755 "$DESTDIR/etc/power/event.d"
+ 	$INSTALL -d -m 755 "$DESTDIR/etc/power/scripts.d"
+ 	if ( ! $INSTALL -m 755 etc/power/scripts.d/laptop-mode "$DESTDIR/etc/power/scripts.d" ) ; then

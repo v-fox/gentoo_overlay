@@ -1,0 +1,20 @@
+--- src/mainform.cpp	2009-04-12 22:33:12.000000000 +0600
++++ src/mainform.cpp_new	2009-04-15 16:51:29.068705342 +0600
+@@ -159,7 +159,7 @@
+ #ifdef Q_OS_WIN32
+     m_dictDir = QDir(QApplication::applicationDirPath() + "/../dict/").absolutePath();
+ #else
+-    m_dictDir = QDir::homePath()+"/SimpleDict/dict/";
++    m_dictDir = QDir::homePath()+"/.simpledict/dict/";
+ #endif
+ 
+     QDir d(m_dictDir);
+@@ -1218,7 +1218,7 @@
+ }
+ 
+ void MainForm::showAbbr(const QString &url)
+-{  
++{
+     QString link(url);
+     link.replace("&x003a;", ":");
+     link.replace("\n", "<br>");

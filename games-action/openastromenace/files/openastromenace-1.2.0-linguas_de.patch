@@ -1,0 +1,21 @@
+*** AstroMenaceSource/Defines.h	2008-08-14 13:48:12.000000000 +0200
+--- AstroMenaceSource/Defines.h.de	2008-08-14 13:48:36.000000000 +0200
+***************
+*** 38,45 ****
+  // язык интерфейса
+  #if !defined(EN) && !defined(DE) && !defined(RU)
+  
+! #define EN
+! //#define DE
+  //#define RU
+  
+  #endif
+--- 38,45 ----
+  // язык интерфейса
+  #if !defined(EN) && !defined(DE) && !defined(RU)
+  
+! //#define EN
+! #define DE
+  //#define RU
+  
+  #endif

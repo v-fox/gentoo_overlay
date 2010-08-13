@@ -1,0 +1,461 @@
+DIB Engine: Implement Polygon
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/graphics.c |  405 ++++++++++++++++++++++++++++++++++++++++++-
+ 1 files changed, 395 insertions(+), 10 deletions(-)
+
+diff --git a/dlls/winedib.drv/graphics.c b/dlls/winedib.drv/graphics.c
+index 8dda082..fba34f5 100644
+--- a/dlls/winedib.drv/graphics.c
++++ b/dlls/winedib.drv/graphics.c
+@@ -36,6 +36,281 @@ static inline void OrderInt(int *i1, int *i2)
+     }
+ }
+ 
++#define LEFT_SIDE   1
++#define TOP_SIDE    2
++#define RIGHT_SIDE  4
++#define BOTTOM_SIDE 8
++
++/* clips a line segment by a rectangular window */
++static inline BYTE outCodes(const POINT *p, const RECT *r)
++{
++    BYTE Code = 0; 
++
++    if(p->y < r->top)
++        Code |= TOP_SIDE;
++    else if(p->y >= r->bottom)
++        Code |= BOTTOM_SIDE;
++    if(p->x >= r->right)
++        Code |= RIGHT_SIDE;
++    else if(p->x < r->left)
++        Code |= LEFT_SIDE;
++    return Code;
++}
++
++static BOOL ClipLine(const POINT *p1, const POINT *p2, const RECT *r, POINT *pc1, POINT *pc2)
++{
++    BYTE outCode1,outCode2;
++    int tmp;
++    BYTE tmpCode;
++
++    pc1->x = p1->x; pc1->y = p1->y; 
++    pc2->x = p2->x; pc2->y = p2->y; 
++    while(TRUE)
++    {
++        outCode1 = outCodes(pc1, r);
++        outCode2 = outCodes(pc2, r);
++        if(outCode1 & outCode2)
++            return FALSE;
++        if(!outCode1 && !outCode2)
++            return TRUE;
++        if(!outCode1)
++        {
++            tmp = pc1->x; pc1->x = pc2->x; pc2->x = tmp;
++            tmp = pc1->y; pc1->y = pc2->y; pc2->y = tmp;
++            tmpCode = outCode1; outCode1 = outCode2; outCode2 = tmpCode;
++        } 
++        if(outCode1 & TOP_SIDE) 
++        { 
++            pc1->x += MulDiv(pc2->x - pc1->x, r->top - pc1->y, pc2->y - pc1->y);
++            pc1->y = r->top;
++        }
++        else if(outCode1 & BOTTOM_SIDE) 
++        { 
++            pc1->x += MulDiv(pc2->x - pc1->x, r->bottom - 1 - pc1->y, pc2->y - pc1->y);
++            pc1->y = r->bottom - 1;
++        }
++        else if(outCode1 & RIGHT_SIDE) 
++        { 
++            pc1->y += MulDiv(pc2->y - pc1->y, r->right - 1 - pc1->x, pc2->x - pc1->x);
++            pc1->x = r->right - 1;
++        }
++        else if(outCode1 & LEFT_SIDE)
++        { 
++            pc1->y += MulDiv(pc2->y - pc1->y, r->left - pc1->x, pc2->x - pc1->x);
++            pc1->x = r->left;
++        }
++    } 
++}
++
++/* Clips a polygon by an horizontal/vertical line
++   which indicates the side :
++*/
++static inline BOOL PointInside(const POINT *p, const RECT *r, BYTE side)
++{
++	switch(side)
++    {
++		case 1: /* left */
++			return p->x >= r->left;
++		case 2: /* top */
++			return p->y >= r->top;
++		case 4: /* right */
++			return p->x < r->right;
++		case 8: /* bottom */
++			return p->y < r->bottom;
++        default:
++            return FALSE;
++	}
++}
++
++static inline void SideIntersect(const POINT *p1, const POINT *p2, const RECT *r, BYTE side, POINT *inters)
++{
++	switch( side )
++    {
++		case LEFT_SIDE: /* left */
++            inters->x = r->left;
++            inters->y = MulDiv(p2->y - p1->y, r->left - p1->x, p2->x - p1->x) + p1->y;
++			break;
++		case TOP_SIDE: /* top */
++            inters->x = MulDiv(p2->x - p1->x, r->top - p1->y, p2->y - p1->y) + p1->x;
++            inters->y = r->bottom;
++			break;
++		case RIGHT_SIDE: /* right */
++            inters->x = r->right - 1;
++            inters->y = MulDiv(p2->y - p1->y, r->right - 1 - p1->x, p2->x - p1->x) + p1->y;
++			break;
++		case BOTTOM_SIDE: /* bottom */
++            inters->x = MulDiv(p2->x - p1->x, r->bottom - 1 - p1->y, p2->y - p1->y) + p1->x;
++            inters->y = r->bottom - 1;
++			break;
++        default:
++            break;
++	}
++}	
++
++
++static BOOL ClipPolygonBySide(const POINT *pt, int count, const RECT *r, BYTE side, POINT **clipped, int *clippedCount)
++{
++	int iPoint;
++	const POINT *p1, *p2;
++    POINT *pOut;
++
++    if(!(*clipped = HeapAlloc(GetProcessHeap(), 0, sizeof(POINT) * count * 2)))
++        return FALSE;
++    pOut = *clipped;
++    *clippedCount = 0;
++
++	p1 = pt + count - 1;
++    p2 = pt;
++	for(iPoint = 0 ; iPoint < count ; iPoint++)
++    {
++		if(PointInside(p2, r, side))
++        {
++			/* point p is "inside" */
++			if(!PointInside(p1, r, side))
++            {
++				/* p is "inside" and s is "outside" */
++				SideIntersect(p2, p1, r, side, pOut++);
++				(*clippedCount)++;
++			}
++			pOut->x = p2->x;
++            pOut->y = p2->y;
++            pOut++;
++            (*clippedCount)++;
++		}
++        else if(PointInside( p1, r, side ))
++        {
++			/* s is "inside" and p is "outside" */
++			SideIntersect(p1, p2, r, side, pOut++);
++			(*clippedCount)++;
++		}
++		p1 = p2++;
++	}
++    return *clippedCount;
++}
++
++
++/* Clips a polygon by a rectangular window - returns a new polygon */
++static BOOL ClipPolygon(const POINT* pt, int count, const RECT *r, POINT **newPt, int *newCount)
++{
++    POINT *pc1, *pc2;
++    int count1, count2;
++    BOOL res;
++    
++    if(!ClipPolygonBySide(pt, count, r, LEFT_SIDE, &pc1, &count1))
++        return FALSE;
++    res = ClipPolygonBySide(pc1, count1, r, TOP_SIDE, &pc2, &count2);
++    HeapFree(GetProcessHeap(), 0, pc1);
++    if(!res)
++        return FALSE;
++    res = ClipPolygonBySide(pc2, count2, r, RIGHT_SIDE, &pc1, &count1);
++    HeapFree(GetProcessHeap(), 0, pc2);
++    if(!res)
++        return FALSE;
++    res = ClipPolygonBySide(pc1, count1, r, BOTTOM_SIDE, &pc2, &count2);
++    HeapFree(GetProcessHeap(), 0, pc1);
++    if(!res)
++        return FALSE;
++
++    *newPt = pc2;
++    *newCount = count2;
++    return TRUE;
++}
++
++/* Intersects a line given by 2 points with an horizontal scan line at height y */
++static BOOL ScanLine(const POINT *p1, const POINT *p2, int ys, POINT *pRes)
++{
++    if(!pRes)
++        return FALSE;
++        
++    /* if line lies completely over or under scan line, no intersection */
++    if((p1->y < ys && p2->y < ys) || (p1->y >= ys && p2->y >= ys))
++        return FALSE;
++        
++    /* if line is parallel to x axis, we consider it not intersecting */
++    if(p1->y == p2->y)
++        return FALSE;
++
++    pRes->x = MulDiv(p2->x - p1->x, ys - p1->y, p2->y - p1->y) + p1->x;
++    pRes->y = ys;
++    return TRUE;
++}
++
++/* Gets an x-ordered list of intersection points of a scanline at position y
++   with a polygon/polyline */
++static BOOL ScanPolygon(const POINT *pt, int count, int ys, POINT **scans, int *scanCount)
++{
++    const POINT *p1, *p2;
++    POINT *pDest;
++    int iPoint;
++    POINT *ps1, *ps2;
++    int i, j, tmp;
++    
++    /* if not at least 2 points, nothing to return */
++    if(count < 2)
++        return FALSE;
++    
++    /* intersections count is AT MOST 'count'; we don't care to
++       allocate exact memory needed */
++    *scans = HeapAlloc(GetProcessHeap(), 0, sizeof(POINT)*count);
++    if(!*scans)
++        return FALSE;
++        
++    /* builds unordered intersections */
++    pDest = *scans;
++    *scanCount = 0;
++    p2 = pt;
++    for(iPoint = 0; iPoint < count-1; iPoint++)
++    {
++        p1 = p2;
++        p2++;
++        if(ScanLine(p1, p2, ys, pDest))
++        {
++            pDest++;
++            (*scanCount)++;
++        }
++    }
++    p1 = p2;
++    p2 = pt;
++    if(ScanLine(p1, p2, ys, pDest))
++    {
++        pDest++;
++        (*scanCount)++;
++    }
++    
++    /* now we sort the list -- duped point are left into
++       as they're needed for the scanline fill algorithm */
++    for(i = 0, ps1 = *scans; i < *scanCount -1; i++, ps1++)
++        for(j = i+1, ps2 = ps1+1; j < *scanCount; j++, ps2++)
++            if(ps2->x < ps1->x)
++            {
++                tmp = ps2->x;
++                ps2->x = ps1->x;
++                ps1->x = tmp;
++                tmp = ps2->y;
++                ps2->y = ps1->y;
++                ps1->y = tmp;
++            }
++    
++    return TRUE;
++}
++
++/* gets bounding box of a polygon */
++void PolygonBoundingBox(const POINT *pt, int count, RECT *bBox)
++{
++    const POINT *p;
++    int iPoint;
++    
++    bBox->left = MAXLONG; bBox->right  = -MAXLONG;
++    bBox->top  = MAXLONG; bBox->bottom = -MAXLONG;
++    for(p = pt, iPoint = 0; iPoint < count; iPoint++, p++)
++    {
++        if(p->x < bBox->left  ) bBox->left   = p->x;
++        if(p->x > bBox->right ) bBox->right  = p->x;
++        if(p->y < bBox->top   ) bBox->top    = p->y;
++        if(p->y > bBox->bottom) bBox->bottom = p->y;
++    }
++}
++
+ /***********************************************************************
+  *           DIBDRV_Arc
+  */
+@@ -291,45 +566,155 @@ BOOL DIBDRV_Pie( DIBDRVPHYSDEV *physDev, int left, int top, int right, int botto
+ /**********************************************************************
+  *          DIBDRV_Polygon
+  */
+-BOOL DIBDRV_Polygon( DIBDRVPHYSDEV *physDev, const POINT* pt, int count )
++BOOL DIBDRV_Polygon( DIBDRVPHYSDEV *physDev, const POINT* ptw, int count )
+ {
+     BOOL res;
++    POINT *pt;
++    RECT *r;
++    int iRec;
++    POINT *clipped;
++    int clippedCount;
++    RECT bBox;
++    int ys;
++    POINT *scans;
++    int scanCount, iScan;
++    const POINT *p1, *p2;
++    int iPoint;
++    POINT pc1, pc2;
+     
+-    MAYBE(TRACE("physDev:%p, pt:%p, count:%d\n", physDev, pt, count));
++    MAYBE(TRACE("physDev:%p, pt:%p, count:%d\n", physDev, ptw, count));
+ 
+     if(physDev->hasDIB)
+     {
+         /* DIB section selected in, use DIB Engine */
+-        ONCE(FIXME("STUB\n"));
+-        res = TRUE;
++        
++        res = FALSE;
++        
++        /* first converts all points to device coords */
++        if(!(pt = HeapAlloc(GetProcessHeap(), 0, sizeof(POINT) * count)))
++            goto fin;
++        memcpy(pt, ptw, sizeof(POINT) * count);
++        LPtoDP(physDev->hdc, pt, count);
++        
++        /* cycle on all current clipping rectangles */
++        r = physDev->regionRects;
++        for(iRec = 0; iRec < physDev->regionRectCount; iRec++, r++)
++        {
++            /* filled area */
++            if(ClipPolygon(pt, count, r, &clipped, &clippedCount))
++            {
++                /* gets polygon bounding box -- for ytop and ybottom */
++                PolygonBoundingBox(clipped, clippedCount, &bBox);
++                
++                /* gets all ordered intersections of polygon with
++                   current scanline */
++                for(ys = bBox.top; ys < bBox.bottom; ys++)
++                {
++                    if(ScanPolygon(clipped, clippedCount, ys, &scans, &scanCount))
++                    {
++                        if(scanCount >= 2)
++                        {
++                            res = TRUE;
++                            p1 = scans;
++                            p2 = p1+1;
++                            iScan = 0;
++                            while(iScan < scanCount - 1)
++                            {
++                                physDev->brushHLine(physDev, p1->x, p2->x, ys);
++                                p1 +=2;
++                                p2 +=2;
++                                iScan +=2;
++                            }
++                        }
++                        HeapFree(GetProcessHeap(), 0, scans);
++                    }
++                }
++                HeapFree(GetProcessHeap(), 0, clipped);
++            }
++            
++            /* perimeter -- don't use PolyLine for speed */
++            p2 = pt;
++            for(iPoint = 0; iPoint < count -1; iPoint++)
++            {
++                p1 = p2++;
++                if(ClipLine(p1, p2, r, &pc1, &pc2))
++                {
++                    res = TRUE;
++                    physDev->penLine(physDev, pc1.x, pc1.y, pc2.x, pc2.y);
++                }
++            }
++            p1 = p2;
++            p2 = pt;
++            if(ClipLine(p1, p2, r, &pc1, &pc2))
++            {
++                res = TRUE;
++                physDev->penLine(physDev, pc1.x, pc1.y, pc2.x, pc2.y);
++            }
++        }
++        
++        HeapFree(GetProcessHeap(), 0, pt);
++                        
+     }
+     else
+     {
+         /* DDB selected in, use X11 driver */
+-        res = _DIBDRV_GetDisplayDriver()->pPolygon(physDev->X11PhysDev, pt, count);
++        res = _DIBDRV_GetDisplayDriver()->pPolygon(physDev->X11PhysDev, ptw, count);
+     }
++fin:
+     return res;
+ }
+ 
+ /**********************************************************************
+  *          DIBDRV_Polyline
+  */
+-BOOL DIBDRV_Polyline( DIBDRVPHYSDEV *physDev, const POINT* pt, int count )
++BOOL DIBDRV_Polyline( DIBDRVPHYSDEV *physDev, const POINT* ptw, int count )
+ {
+     BOOL res;
+     
+-    MAYBE(TRACE("physDev:%p, pt:%p, count:%d\n", physDev, pt, count));
++    MAYBE(TRACE("physDev:%p, pt:%p, count:%d\n", physDev, ptw, count));
+ 
+     if(physDev->hasDIB)
+     {
+         /* DIB section selected in, use DIB Engine */
+-        ONCE(FIXME("STUB\n"));
+-        res = TRUE;
++        POINT *pt;
++        RECT *r;
++        POINT pc1, pc2;
++        int iRec, iPoint;
++
++        if(count < 2)
++            return FALSE;
++        res = FALSE;
++            
++        /* first converts all points to device coords */
++        if(!(pt = HeapAlloc(GetProcessHeap(), 0, sizeof(POINT) * count)))
++            return FALSE;
++        memcpy(pt, ptw, sizeof(POINT) * count);
++        LPtoDP(physDev->hdc, pt, count);
++        
++        r = physDev->regionRects;
++        for(iRec = 0; iRec < physDev->regionRectCount; iRec++)
++        {
++            const POINT *p2 = pt, *p1;
++            for(iPoint = 0; iPoint < count -1; iPoint++)
++            {
++                p1 = p2++;
++                if(ClipLine(p1, p2, r, &pc1, &pc2))
++                {
++                    res = TRUE;
++                    physDev->penLine(physDev, pc1.x, pc1.y, pc2.x, pc2.y);
++                }
++            }
++            r++;
++        }
++        
++        HeapFree(GetProcessHeap(), 0, pt);
++        
++        return res;
+     }
+     else
+     {
+         /* DDB selected in, use X11 driver */
+-        res = _DIBDRV_GetDisplayDriver()->pPolyline(physDev->X11PhysDev, pt, count);
++        res = _DIBDRV_GetDisplayDriver()->pPolyline(physDev->X11PhysDev, ptw, count);
+     }
+     return res;
+ }

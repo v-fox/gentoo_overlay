@@ -1,0 +1,510 @@
+DIB Engine: implement AlphaBlend
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/bitblt.c            |   88 ++++++++--
+ dlls/winedib.drv/dibdrv.h            |    2 
+ dlls/winedib.drv/primitives.c        |   12 +
+ dlls/winedib.drv/primitives_bitblt.c |  287 ++++++++++++++++++++++++++++++++++
+ 4 files changed, 370 insertions(+), 19 deletions(-)
+
+diff --git a/dlls/winedib.drv/bitblt.c b/dlls/winedib.drv/bitblt.c
+index 20cdcaa..c0227a0 100644
+--- a/dlls/winedib.drv/bitblt.c
++++ b/dlls/winedib.drv/bitblt.c
+@@ -150,34 +150,84 @@ BOOL DIBDRV_AlphaBlend( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst, INT width
+           xDst, yDst, widthDst, heightDst,
+           physDevSrc, physDevSrc->hasDIB ? "DIB-" : "DDB", physDevSrc->hasDIB ? _DIBDRVBITMAP_GetFormatName(&physDevSrc->physBitmap) : "",
+           xSrc, ySrc, widthSrc, heightSrc));
++          
+ 
+-    if(physDevDst->hasDIB && physDevSrc->hasDIB)
++    /* if sizes are null or negative, returns false */
++    if(widthSrc <= 0 || heightSrc <= 0 || widthDst <= 0 || heightDst <= 0)
+     {
+-        /* DIB section selected in both source and dest DC, use DIB Engine */
+-        ONCE(FIXME("STUB\n"));
+-        res = TRUE;
++        res = FALSE;
++        goto fin;
+     }
+-    else if(!physDevDst->hasDIB && !physDevSrc->hasDIB)
++          
++    /* source sould be a 32 bit DIB */
++    if(!physDevSrc)
+     {
+-        /* DDB selected in noth source and dest DC, use X11 driver */
+-        res =  _DIBDRV_GetDisplayDriver()->pAlphaBlend(physDevDst->X11PhysDev, xDst, yDst, widthDst, heightDst,
+-                                                       physDevSrc->X11PhysDev, xSrc, ySrc, widthSrc, heightSrc,
+-                                                       blendfn);
++        FIXME("Null source bitmap -- shouldn't happen\n");
++        res = FALSE;
++        goto fin;
+     }
+-    else if(physDevSrc->hasDIB)
++    else if(!physDevSrc->hasDIB)
+     {
+-        /* DIB on source, DDB on dest -- must convert source DIB to DDB and use X11 driver for blit */
+-        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
+-        res =  _DIBDRV_GetDisplayDriver()->pAlphaBlend(physDevDst->X11PhysDev, xDst, yDst, widthDst, heightDst,
+-                                                   physDevSrc->X11PhysDev, xSrc, ySrc, widthSrc, heightSrc,
+-                                                   blendfn);
++        FIXME("DDB source bitmap -- shouldn't happen\n");
++        res = FALSE;
++        goto fin;
+     }
+-    else /* if(physDevDst->hasDIB) */
++    
++    if(physDevDst->hasDIB)
+     {
+-        /* DDB on source, DIB on dest -- must convert source DDB to DIB and use the engine for blit */
+-        ONCE(FIXME("STUB\n"));
+-        res = TRUE; 
++        /* DIB section selected in dest DC, use DIB Engine */
++        MAYBE(TRACE("Blending DIB->DIB\n"));
++        res = physDevDst->physBitmap.funcs->AlphaBlend(physDevDst, xDst, yDst, widthDst, heightDst,
++                                                       physDevSrc, xSrc, ySrc, widthSrc, heightSrc, blendfn);
++    }
++    else
++    {
++        /* DDB selected on dest DC -- must double-convert */
++        HBITMAP tmpDIB, stock;
++        HDC tmpDC;
++        MAYBE(TRACE("Blending DIB->DDB\n"));
++        
++        /* converts dest DDB onto a temporary DIB -- just the needed part */
++        tmpDIB = _DIBDRV_ConvertDevDDBtoDIB(physDevDst->hdc, physDevSrc->hdc, xDst, yDst, widthDst, heightDst);
++        if(!tmpDIB)
++        {
++            ERR("Couldn't convert dest DDB to DIB\n");
++            res = FALSE;
++            goto fin;
++        }
++        
++        /* selects the temporary DIB into a temporary DC */
++        tmpDC = CreateCompatibleDC(physDevDst->hdc);
++        if(!tmpDC)
++        {
++            ERR("Couldn't create temporary DC\n");
++            DeleteObject(tmpDIB);
++            res = FALSE;
++            goto fin;
++        }
++        stock = SelectObject(tmpDC, tmpDIB);
++        if(!stock)
++        {
++            ERR("Couldn't select temporary DIB into temporary DC\n");
++            DeleteDC(tmpDC);
++            DeleteObject(tmpDIB);
++            res = FALSE;
++            goto fin;
++        }
++        
++        /* blends source DIB onto temp DIB and re-blits onto dest DC */
++        res = GdiAlphaBlend(tmpDC, 0, 0, widthDst, heightDst, physDevSrc->hdc, xSrc, ySrc, widthSrc, heightSrc, blendfn);
++        if(!res)
++            MAYBE(TRACE("AlphaBlend failed\n"));
++        else
++            res = BitBlt(physDevDst->hdc, xDst, yDst, widthDst, heightDst, tmpDC, 0, 0, SRCCOPY);
++            
++        /* frees resources */
++        SelectObject(tmpDC, stock);
++        DeleteDC(tmpDC);
++        DeleteObject(tmpDIB);        
+     }
++fin:
+     return res;
+ }
+ 
+diff --git a/dlls/winedib.drv/dibdrv.h b/dlls/winedib.drv/dibdrv.h
+index 773941e..c801d96 100644
+--- a/dlls/winedib.drv/dibdrv.h
++++ b/dlls/winedib.drv/dibdrv.h
+@@ -94,6 +94,8 @@ typedef struct _DIBDRV_PRIMITIVE_FUNCS
+     BOOL  (* PutLine)          (      struct _DIBDRVBITMAP *bmp, int line, int startx, int width, void *buf);
+     
+     /* BitBlt primitives */
++    BOOL  (* AlphaBlend)       (      struct _DIBDRVPHYSDEV *physDevDst, int xDst, int yDst, int widthDst, int heightDst,
++                                const struct _DIBDRVPHYSDEV *physDevSrc, int xSrc, int ySrc, int widthSrc, int heightSrc, BLENDFUNCTION blendFn );
+     BOOL  (* BitBlt)           (      struct _DIBDRVPHYSDEV *physDevDst, int xDst, int yDst, int width, int height,
+                                 const struct _DIBDRVPHYSDEV *physDevSrc, int xSrc, int ySrc, DWORD rop );
+     BOOL  (* StretchBlt)       (      struct _DIBDRVPHYSDEV *physDevDst, int xDst, int yDst, int widthDst, int heightDst,
+diff --git a/dlls/winedib.drv/primitives.c b/dlls/winedib.drv/primitives.c
+index cbad239..a2fa04a 100644
+--- a/dlls/winedib.drv/primitives.c
++++ b/dlls/winedib.drv/primitives.c
+@@ -133,6 +133,10 @@ BOOL _DIBDRV_StretchBlt_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                     INT widthDst, INT heightDst, const DIBDRVPHYSDEV *physDevSrc,
+                     INT xSrc, INT ySrc, int widthSrc, int heightSrc, DWORD rop);
+ 
++BOOL _DIBDRV_AlphaBlend_generic(DIBDRVPHYSDEV *physDevDst, int xDst, int yDst,
++                    int widthDst, int heightDst, const DIBDRVPHYSDEV *physDevSrc,
++                    int xSrc, int ySrc, int widthSrc, int heightSrc, BLENDFUNCTION blendFn );
++                    
+ /* ------------------------------------------------------------*/
+ /*               FREETYPE FONT BITMAP BLITTING                 */
+ void _DIBDRV_freetype_blit_8888        (DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
+@@ -156,6 +160,7 @@ DIBDRV_PRIMITIVE_FUNCS DIBDRV_funcs_DIB32_RGB =
+     _DIBDRV_SolidVLine32,
+     _DIBDRV_GetLine32_RGB,
+     _DIBDRV_PutLine32_RGB,
++    _DIBDRV_AlphaBlend_generic,
+     _DIBDRV_BitBlt_generic,
+     _DIBDRV_StretchBlt_generic,
+     _DIBDRV_freetype_blit_32_RGB
+@@ -172,6 +177,7 @@ DIBDRV_PRIMITIVE_FUNCS DIBDRV_funcs_DIB32_BITFIELDS =
+     _DIBDRV_SolidVLine32,
+     _DIBDRV_GetLine32_BITFIELDS,
+     _DIBDRV_PutLine32_BITFIELDS,
++    _DIBDRV_AlphaBlend_generic,
+     _DIBDRV_BitBlt_generic,
+     _DIBDRV_StretchBlt_generic,
+     _DIBDRV_freetype_blit_32_BITFIELDS
+@@ -188,6 +194,7 @@ DIBDRV_PRIMITIVE_FUNCS DIBDRV_funcs_DIB24 =
+     _DIBDRV_SolidVLine24,
+     _DIBDRV_GetLine24,
+     _DIBDRV_PutLine24,
++    _DIBDRV_AlphaBlend_generic,
+     _DIBDRV_BitBlt_generic,
+     _DIBDRV_StretchBlt_generic,
+     _DIBDRV_freetype_blit_24
+@@ -204,6 +211,7 @@ DIBDRV_PRIMITIVE_FUNCS DIBDRV_funcs_DIB16_RGB =
+     _DIBDRV_SolidVLine16,
+     _DIBDRV_GetLine16_RGB,
+     _DIBDRV_PutLine16_RGB,
++    _DIBDRV_AlphaBlend_generic,
+     _DIBDRV_BitBlt_generic,
+     _DIBDRV_StretchBlt_generic,
+     _DIBDRV_freetype_blit_16_RGB
+@@ -220,6 +228,7 @@ DIBDRV_PRIMITIVE_FUNCS DIBDRV_funcs_DIB16_BITFIELDS =
+     _DIBDRV_SolidVLine16,
+     _DIBDRV_GetLine16_BITFIELDS,
+     _DIBDRV_PutLine16_BITFIELDS,
++    _DIBDRV_AlphaBlend_generic,
+     _DIBDRV_BitBlt_generic,
+     _DIBDRV_StretchBlt_generic,
+     _DIBDRV_freetype_blit_16_BITFIELDS
+@@ -236,6 +245,7 @@ DIBDRV_PRIMITIVE_FUNCS DIBDRV_funcs_DIB8 =
+     _DIBDRV_SolidVLine8,
+     _DIBDRV_GetLine8,
+     _DIBDRV_PutLine8,
++    _DIBDRV_AlphaBlend_generic,
+     _DIBDRV_BitBlt_generic,
+     _DIBDRV_StretchBlt_generic,
+     _DIBDRV_freetype_blit_8
+@@ -252,6 +262,7 @@ DIBDRV_PRIMITIVE_FUNCS DIBDRV_funcs_DIB4 =
+     _DIBDRV_SolidVLine4,
+     _DIBDRV_GetLine4,
+     _DIBDRV_PutLine4,
++    _DIBDRV_AlphaBlend_generic,
+     _DIBDRV_BitBlt_generic,
+     _DIBDRV_StretchBlt_generic,
+     _DIBDRV_freetype_blit_4
+@@ -268,6 +279,7 @@ DIBDRV_PRIMITIVE_FUNCS DIBDRV_funcs_DIB1 =
+     _DIBDRV_SolidVLine1,
+     _DIBDRV_GetLine1,
+     _DIBDRV_PutLine1,
++    _DIBDRV_AlphaBlend_generic,
+     _DIBDRV_BitBlt_generic,
+     _DIBDRV_StretchBlt_generic,
+     _DIBDRV_freetype_blit_1
+diff --git a/dlls/winedib.drv/primitives_bitblt.c b/dlls/winedib.drv/primitives_bitblt.c
+index da48352..7540dad 100644
+--- a/dlls/winedib.drv/primitives_bitblt.c
++++ b/dlls/winedib.drv/primitives_bitblt.c
+@@ -80,6 +80,293 @@ static void StretchLine(DWORD *dst, int dstWidth, DWORD *src, int srcWidth)
+         memcpy(dst, src, 4 * srcWidth);
+ }
+ 
++/* premultiply alpha channel on a line by a constant alpha
++   note : it seems that pixels are already premultiplied
++   by alpha channel content */
++static void PemultiplyLine(DWORD *dst, int width, BYTE constAlpha)
++{
++    int i = width;
++    BYTE *alphaPnt = (BYTE *)dst + 3;
++    
++    /* small optimization for 0 and 255 values of constAlpha */
++
++    /* fully transparent -- just sets all pix to 0 */
++    if(constAlpha == 0)
++    {
++        while(i--)
++            *dst++ = 0;
++        return;
++    }
++    
++    /* fully opaque, just do nothing */
++    if(constAlpha == 255)
++        return;
++
++    /* intermediate -- premultiply alpha values */
++    while(i--)
++    {
++        *alphaPnt = MulDiv(*alphaPnt, constAlpha, 255);
++        alphaPnt += 4;
++    }
++    return;
++        
++}
++
++/* alpha blends a source line onto a destination line
++   preconditions :
++   1) source and dest widths must be the same
++   2) source line should be already premultiplied by constant alpha */
++static void BlendLine(DWORD *dst, DWORD *src, int width)
++{
++    int i = width;
++    BYTE *blueDst  = (BYTE *)dst;
++    BYTE *greenDst = blueDst  + 1;
++    BYTE *redDst   = greenDst + 1;
++    BYTE *blueSrc  = (BYTE *)src;
++    BYTE *greenSrc = blueSrc  + 1;
++    BYTE *redSrc   = greenSrc + 1;
++    BYTE *alphaSrc = redSrc   + 1;
++    BYTE alpha;
++    
++    /* still don't know if it must take in account an eventual dest
++       alpha channel..... */
++    while(i--)
++    {
++        alpha = 255 - *alphaSrc;
++        
++        *blueDst  = *blueSrc  + MulDiv(*blueDst,  alpha, 255);
++        *greenDst = *greenSrc + MulDiv(*greenDst, alpha, 255);
++        *redDst   = *redSrc   + MulDiv(*redDst,   alpha, 255);
++
++        blueSrc  += 4;
++        greenSrc += 4;
++        redSrc   += 4;
++        alphaSrc += 4;
++        blueDst  += 4;
++        greenDst += 4;
++        redDst   += 4;
++    }
++
++}
++
++/* ------------------------------------------------------------*/
++/*                        ALPHABLEND PRIMITIVES                */
++BOOL _DIBDRV_AlphaBlend_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
++                    INT widthDst, INT heightDst, const DIBDRVPHYSDEV *physDevSrc,
++                    INT xSrc, INT ySrc, int widthSrc, int heightSrc, BLENDFUNCTION blendFn)
++{
++    /* flags indicating wether source should be stretched */
++    BOOL horStretch = (widthSrc != widthDst);
++    BOOL verStretch = (heightSrc != heightDst);
++    
++    /* constant alpha value */
++    BYTE constAlpha = blendFn.SourceConstantAlpha;
++    
++    /* source and dest bitmaps */
++    const DIBDRVBITMAP *srcBmp = &physDevSrc->physBitmap;
++    DIBDRVBITMAP *dstBmp = &physDevDst->physBitmap;
++    
++    /* source and destination line buffers */
++    DWORD *sBuf = HeapAlloc(GetProcessHeap(), 0, abs(srcBmp->stride));
++    DWORD *dBuf = HeapAlloc(GetProcessHeap(), 0, abs(dstBmp->stride));
++    
++    int ys = ySrc;
++    int yd = yDst;
++    int iLine;
++    int delta;
++
++    /* in order to optimize a bit, we divide the routine in 4 parts,
++       depending on stretching modes */
++    if(!horStretch && !verStretch)
++    {
++        /* simplest case, no stretching needed */
++        MAYBE(TRACE("No stretching\n"));
++        for(iLine = 0; iLine < heightSrc; iLine++, ys++, yd++)
++        {
++            /* load source and dest lines */
++            srcBmp->funcs->GetLine(srcBmp, ys, xSrc, widthSrc, sBuf);
++            dstBmp->funcs->GetLine(dstBmp, yd, xDst, widthDst, dBuf);
++            
++            /* premultiply source by constant and pixel alpha */
++            PemultiplyLine(sBuf, widthSrc, constAlpha);
++            
++            /* blends source on dest */
++            BlendLine(dBuf, sBuf, widthSrc);
++            
++            /* puts dest line back */
++            dstBmp->funcs->PutLine(dstBmp, yd, xDst, widthDst, dBuf);
++        }
++    }
++    else if (horStretch && !verStretch)
++    {
++        /* just horizontal stretching needed */
++        DWORD *strBuf = HeapAlloc(GetProcessHeap(), 0, abs(dstBmp->stride));
++        MAYBE(TRACE("Horizontal stretching\n"));
++
++        for(iLine = 0; iLine < heightSrc; iLine++, ys++, yd++)
++        {
++            /* load source and dest lines */
++            srcBmp->funcs->GetLine(srcBmp, ys, xSrc, widthSrc, sBuf);
++            dstBmp->funcs->GetLine(dstBmp, yd, xDst, widthDst, dBuf);
++            
++            /* stretch source line to match dest one */
++            StretchLine(strBuf, widthDst, sBuf, widthSrc);
++        
++            /* premultiply source by constant and pixel alpha */
++            PemultiplyLine(strBuf, widthDst, constAlpha);
++            
++            /* blends source on dest */
++            BlendLine(dBuf, sBuf, widthDst);
++            
++            /* puts dest line back */
++            dstBmp->funcs->PutLine(dstBmp, yd, xDst, widthDst, dBuf);
++        }
++        HeapFree(GetProcessHeap(), 0, strBuf);
++    }
++    else if (!horStretch && verStretch)
++    {
++        /* just vertical stretching needed */
++        MAYBE(TRACE("Vertical stretching\n"));
++
++        if(heightSrc > heightDst)
++        {
++            iLine = 0;
++            delta = 0;
++            while(iLine < heightDst)
++            {
++                /* load source and dest lines */
++                srcBmp->funcs->GetLine(srcBmp, ys, xSrc, widthSrc, sBuf);
++                dstBmp->funcs->GetLine(dstBmp, yd, xDst, widthDst, dBuf);
++
++                /* premultiply source by constant and pixel alpha */
++                PemultiplyLine(sBuf, widthSrc, constAlpha);
++                
++                /* blends source on dest */
++                BlendLine(dBuf, sBuf, widthDst);
++                
++                /* puts dest line back */
++                dstBmp->funcs->PutLine(dstBmp, yd, xDst, widthDst, dBuf);
++
++                while(delta < heightSrc)
++                {
++                    ys++;
++                    delta += heightDst;
++                }
++                delta -= heightSrc;
++                yd++;
++                iLine++;
++            }
++        }
++        else if(heightSrc < heightDst)
++        {
++            iLine = 0;
++            delta = 0;
++            while(iLine < heightSrc)
++            {
++                /* load source line */
++                srcBmp->funcs->GetLine(srcBmp, ys, xSrc, widthSrc, sBuf);
++                
++                /* premultiply source by constant and pixel alpha */
++                PemultiplyLine(sBuf, widthSrc, constAlpha);
++                
++                while(delta < heightDst)
++                {
++                    /* load dest line */
++                    dstBmp->funcs->GetLine(dstBmp, yd, xDst, widthDst, dBuf);
++                    
++                    /* blends source on dest */
++                    BlendLine(dBuf, sBuf, widthDst);
++                    
++                    /* puts dest line back */
++                    dstBmp->funcs->PutLine(dstBmp, yd, xDst, widthDst, dBuf);
++                    yd++;
++                    delta += heightSrc;
++                }
++                delta -= heightDst;
++                ys++;
++                iLine++;
++            }
++        }
++    }
++    else
++    {
++        DWORD *strBuf = HeapAlloc(GetProcessHeap(), 0, abs(dstBmp->stride));
++        /* both stretching needed -- generic case */
++        MAYBE(TRACE("Horizontal and vertical stretching\n"));
++
++        if(heightSrc > heightDst)
++        {
++            iLine = 0;
++            delta = 0;
++            while(iLine < heightDst)
++            {
++                /* load source and dest lines */
++                srcBmp->funcs->GetLine(srcBmp, ys, xSrc, widthSrc, sBuf);
++                dstBmp->funcs->GetLine(dstBmp, yd, xDst, widthDst, dBuf);
++
++                /* stretch source line to match dest one */
++                StretchLine(strBuf, widthDst, sBuf, widthSrc);
++
++                /* premultiply source by constant and pixel alpha */
++                PemultiplyLine(strBuf, widthDst, constAlpha);
++                
++                /* blends source on dest */
++                BlendLine(dBuf, strBuf, widthDst);
++                
++                /* puts dest line back */
++                dstBmp->funcs->PutLine(dstBmp, yd, xDst, widthDst, dBuf);
++
++                while(delta < heightSrc)
++                {
++                    ys++;
++                    delta += heightDst;
++                }
++                delta -= heightSrc;
++                yd++;
++                iLine++;
++            }
++        }
++        else if(heightSrc < heightDst)
++        {
++            iLine = 0;
++            delta = 0;
++            while(iLine < heightSrc)
++            {
++                /* load source line */
++                srcBmp->funcs->GetLine(srcBmp, ys, xSrc, widthSrc, sBuf);
++                
++                /* stretch source line to match dest one */
++                StretchLine(strBuf, widthDst, sBuf, widthSrc);
++
++                /* premultiply source by constant and pixel alpha */
++                PemultiplyLine(strBuf, widthDst, constAlpha);
++                
++                while(delta < heightDst)
++                {
++                    /* load dest line */
++                    dstBmp->funcs->GetLine(dstBmp, yd, xDst, widthDst, dBuf);
++                    
++                    /* blends source on dest */
++                    BlendLine(dBuf, strBuf, widthDst);
++                    
++                    /* puts dest line back */
++                    dstBmp->funcs->PutLine(dstBmp, yd, xDst, widthDst, dBuf);
++                    yd++;
++                    delta += heightSrc;
++                }
++                delta -= heightDst;
++                ys++;
++                iLine++;
++            }
++        }
++        HeapFree(GetProcessHeap(), 0, strBuf);
++    }
++    
++    HeapFree(GetProcessHeap(), 0, sBuf);
++    HeapFree(GetProcessHeap(), 0, dBuf);
++    return TRUE;
++}
++
+ /* ------------------------------------------------------------*/
+ /*                        BLITTING PRIMITIVES                  */
+ BOOL _DIBDRV_BitBlt_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,

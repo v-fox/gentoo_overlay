@@ -1,0 +1,86 @@
+diff -uNr hal-0.5.12rc1.ORIG/tools/hal-storage-mount.c hal-0.5.12rc1/tools/hal-storage-mount.c
+--- hal-0.5.12rc1.ORIG/tools/hal-storage-mount.c	2009-03-08 21:12:25.000000000 +0000
++++ hal-0.5.12rc1/tools/hal-storage-mount.c	2009-03-08 21:14:26.000000000 +0000
+@@ -453,7 +453,6 @@
+ 	char mount_options[1024];
+ 	char **allowed_options;
+ 	char **given_options;
+-	gboolean wants_to_change_uid;
+ 	char *mount_dir;
+ 	GError *err = NULL;
+ 	char *sout = NULL;
+@@ -465,7 +464,6 @@
+ 	int na;
+ 	GString *mount_option_str;
+ 	gboolean pol_is_fixed;
+-	gboolean pol_change_uid;
+ 	char *action;
+ 	gboolean is_remount;
+ 	gboolean explicit_mount_point_given;
+@@ -723,8 +721,6 @@
+ 		printf ("allowed_options[%d] = '%s'\n", i, allowed_options[i]);
+ #endif
+ 
+-	wants_to_change_uid = FALSE;
+-
+ 	/* check mount options */
+ 	for (i = 0; given_options[i] != NULL; i++) {
+ 		char *given = given_options[i];
+@@ -756,8 +752,6 @@
+ #ifdef DEBUG
+ 					printf ("%s with uid %u\n", allow, uid);
+ #endif
+-					wants_to_change_uid = TRUE;
+-
+ 					goto option_ok;
+ 				} else {
+ 
+@@ -778,24 +772,6 @@
+ 	if (libhal_drive_is_hotpluggable (drive) || libhal_drive_uses_removable_media (drive))
+ 		pol_is_fixed = FALSE;
+ 
+-	pol_change_uid = FALSE;
+-	/* don't consider uid= on non-pollable drives for the purpose of policy 
+-	 * (since these drives normally use vfat)
+-	 */
+-	if (volume != NULL) {
+-		/* don't consider uid= on vfat, iso9660, hfs and udf change-uid for the purpose of policy
+-		 * (since these doesn't contain uid/gid bits) 
+-		 */
+-		if (strcmp (libhal_volume_get_fstype (volume), "vfat") != 0 &&
+-		    strcmp (libhal_volume_get_fstype (volume), "ntfs") != 0 &&
+-		    strcmp (libhal_volume_get_fstype (volume), "ntfs-3g") != 0 &&
+-		    strcmp (libhal_volume_get_fstype (volume), "iso9660") != 0 &&
+-		    strcmp (libhal_volume_get_fstype (volume), "hfs") != 0 &&
+-		    strcmp (libhal_volume_get_fstype (volume), "udf") != 0) {
+-			pol_change_uid = wants_to_change_uid;
+-		}
+-	}
+-
+ 	args[na++] = MOUNT_TYPE_OPT;
+ 	args[na++] = mount_do_fstype;
+ 
+@@ -816,21 +792,10 @@
+ 	args[na++] = NULL;
+ 
+ 	if (pol_is_fixed) {
+-		if (pol_change_uid) {
+-			action = NULL; /* "hal-storage-mount-fixed-extra-options"; TODO: rethink */
+-		} else {
+-			action = "org.freedesktop.hal.storage.mount-fixed";
+-		}
++		action = "org.freedesktop.hal.storage.mount-fixed";
+ 	} else {
+-		if (pol_change_uid) {
+-			action = NULL; /* "hal-storage-mount-removable-extra-options"; TODO: rethink "extra-options" */
+-		} else {
+-			action = "org.freedesktop.hal.storage.mount-removable";
+-		}
++		action = "org.freedesktop.hal.storage.mount-removable";
+ 	}
+-        if (action == NULL) {
+-                unknown_error ("TODO: have to rethink extra options");
+-        }
+ 
+ #ifdef DEBUG
+ 	printf ("using action %s for uid %s, system_bus_connection %s\n", action, invoked_by_uid, 

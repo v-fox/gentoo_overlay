@@ -1,0 +1,1 @@
+For changes look into: /var/lib/nikto/plugins/CHANGES.txt

@@ -1,0 +1,25 @@
+From 60f5427b87648f7fb7eddc4927647f2bd409ba0d Mon Sep 17 00:00:00 2001
+From: Josh Triplett <josh@freedesktop.org>
+Date: Sat, 15 Mar 2008 18:17:41 -0700
+Subject: [PATCH 5/5] Bump version number to 1.2
+
+---
+ configure.ac |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 3edaa69..2a85bac 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -3,7 +3,7 @@
+ 
+ AC_PREREQ(2.57)
+ AC_INIT([libxcb],
+-        1.1.90.1,
++        1.2,
+         [xcb@lists.freedesktop.org])
+ AC_CONFIG_SRCDIR([xcb.pc.in])
+ AM_INIT_AUTOMAKE([foreign dist-bzip2])
+-- 
+1.5.4.1
+

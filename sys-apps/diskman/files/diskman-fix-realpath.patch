@@ -1,0 +1,52 @@
+--- src/diskman/qparted/thread2.cpp.orig	2008-07-25 01:17:22.000000000 +0200
++++ src/diskman/qparted/thread2.cpp	2008-07-25 01:33:16.000000000 +0200
+@@ -22,7 +22,8 @@
+ #include <iostream>
+ #include <sstream>
+ #include <string>
+ #include <algorithm>
++#include <cstring>
+ 
+ #include <qfile.h>
+ #include <qapplication.h>
+@@ -510,7 +511,7 @@
+ 
+         if ( proc_partitions.open ( IO_ReadOnly ) )
+         {
+-            char c_str[255] ;
++            char c_str[4096] ;
+ 
+             while ( ! proc_partitions.atEnd() )
+             {
+@@ -519,20 +520,29 @@
+                     break;
+                 }
+ 
+-                if ( sscanf ( line .latin1(), "%*d %*d %*d %255s", c_str ) == 1 )
++                if ( sscanf ( line .latin1(), "%*d %*d %*d %1024s", c_str ) == 1 )
+                 {
+                     line = "/dev/" ;
+ 
+                     line += c_str ;
+ 
+                     //FIXME: it seems realpath is very unsafe to use (manpage)...
+-                    if ( ( access ( line.latin1(), F_OK ) == 0 ) && realpath ( line .latin1(), c_str ) && line != c_str )
++                    char* real_path = realpath( line .latin1(), NULL ) ;
++                    if ( real_path != NULL )
++                    {
++                        strncpy( c_str, real_path, 4096 );
++                    }
++                    if ( ( access ( line.latin1(), F_OK ) == 0 ) && real_path != NULL && line != c_str )
+                     {
+                         //because we can make no assumption about which path qparted will detect
+                         //we add all combinations.
+                         alternate_paths[ c_str ] = line ;
+                         alternate_paths[ line ] = c_str ;
+                     }
++                    if ( real_path )
++                    {
++                        free( real_path );
++                    }
+                 }
+             }
+ 

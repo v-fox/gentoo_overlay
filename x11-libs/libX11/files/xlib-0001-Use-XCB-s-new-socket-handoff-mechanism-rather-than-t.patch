@@ -1,0 +1,687 @@
+From 1bd47897b8fc944c4033f527c49d55d87a0280d4 Mon Sep 17 00:00:00 2001
+From: Josh Triplett <josh@freedesktop.org>
+Date: Sat, 15 Mar 2008 17:22:23 -0700
+Subject: [PATCH 1/2] Use XCB's new socket handoff mechanism rather than the old XCB Xlib lock.
+
+Previously, Xlib/XCB used XCB's Xlib lock to prevent XCB from sending
+requests between calls to Xlib's LockDisplay and UnlockDisplay macros.
+Xlib/XCB then sent all of its requests using XCB's xcb_send_request, and
+had to flush its requests when unlocking the display.
+
+XCB 1.2 adds a new socket handoff mechanism, xcb_take_socket.  Replace
+much of the existing Xlib/XCB implementation with the use of
+xcb_take_socket to take ownership of the write side of the X connection
+socket, and a return_socket callback which writes any outstanding requests
+with xcb_writev.  This approach allows Xlib/XCB to use the same buffering
+as traditional Xlib did.  In particular, programs which use Xlib/XCB and
+never make XCB calls will never need to hand the socket back to XCB, and
+vice versa.
+
+This allows us to discard large quantities of synchronization code from
+Xlib/XCB, together with the synchronization bugs present in that code.
+Several test cases which previously failed now work perfectly, including
+multi-threaded ico.  In addition, the infamous locking correctness
+assertions, triggered when double-locking or when unlocking without a
+previous lock, no longer exist, because Xlib/XCB no longer has any reason
+to care more about application locking than traditional Xlib does.
+
+Furthermore, the handoff approach provides great improvements to
+performance.  Results from x11perf's XNoOp test, which represented the
+worst case for the lock-based Xlib/XCB:
+
+Traditional Xlib:       average 19100000/sec
+Lock-based Xlib/XCB:    average  3350000/sec
+Handoff-based Xlib/XCB: average 17400000/sec
+
+Thus, for no-ops, the handoff mechanism provides more than a 4x speedup to
+Xlib/XCB, bringing Xlib/XCB within 9% of traditional Xlib no-op
+performance.  Of course, real-world workloads do not use no-op, so your
+mileage may vary.  In particular, since no-ops represent the worst case,
+we expect real workloads to more closely match the performance of
+traditional Xlib.
+
+While removing synchronization code, we changed _XReply to not drop
+any locks when calling xcb_wait_for_reply; previously, we had to carefully
+avoid a deadlock between the Display lock and the XCB Xlib lock. Holding
+the locks reduces implementation complexity and should not impact applications.
+
+Commit by Jamey Sharp and Josh Triplett.
+XCB's handoff mechanism inspired by Keith Packard.
+---
+ configure.ac    |    4 +-
+ src/Makefile.am |    1 -
+ src/OpenDis.c   |   27 +++----
+ src/Xxcbint.h   |   21 +-----
+ src/xcb_io.c    |  150 ++++++++++++++++++++---------------
+ src/xcb_lock.c  |  235 -------------------------------------------------------
+ 6 files changed, 100 insertions(+), 338 deletions(-)
+ delete mode 100644 src/xcb_lock.c
+
+diff --git a/configure.ac b/configure.ac
+index 3719f02..8ade3e7 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -43,8 +43,8 @@ no)
+ 	AC_DEFINE(USE_XCB, 0, [Use XCB for low-level protocol implementation])
+ 	;;
+ *)
+-	X11_REQUIRES="xcb-xlib >= 1.1.90"
+-	X11_EXTRA_DEPS="xcb-xlib"
++	X11_REQUIRES="xcb >= 1.2"
++	X11_EXTRA_DEPS="xcb >= 1.2"
+ 	xdmauth="no" # XCB handles all auth
+ 	AC_DEFINE(USE_XCB, 1, [Use XCB for low-level protocol implementation])
+ 	;;
+diff --git a/src/Makefile.am b/src/Makefile.am
+index 564e03f..3380f81 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -342,7 +342,6 @@ EXTRA_DIST = \
+ 
+ if XCB
+ libX11_la_SOURCES += \
+-                  xcb_lock.c \
+                   xcb_disp.c \
+                   xcb_io.c \
+                   Xxcbint.h
+diff --git a/src/OpenDis.c b/src/OpenDis.c
+index 9c327d1..9d61087 100644
+--- a/src/OpenDis.c
++++ b/src/OpenDis.c
+@@ -260,13 +260,6 @@ XOpenDisplay (
+ 		return(NULL);
+ 	}
+ 
+-#if USE_XCB
+-	if (!_XCBInitDisplayLock(dpy)) {
+-	        OutOfMemory (dpy, setup);
+-		return(NULL);
+-	}
+-#endif
+-
+ 	if (!_XPollfdCacheInit(dpy)) {
+ 	        OutOfMemory (dpy, setup);
+ 		return(NULL);
+@@ -291,6 +284,10 @@ XOpenDisplay (
+          return(NULL);
+     }
+     dpy->bufmax = dpy->buffer + conn_buf_size;
++#if USE_XCB
++    dpy->xcb->real_bufmax = dpy->bufmax;
++    dpy->bufmax = dpy->buffer;
++#endif
+ 
+ 	/* Set up the input event queue and input event queue parameters. */
+ 	dpy->head = dpy->tail = NULL;
+@@ -651,6 +648,12 @@ XOpenDisplay (
+ 	UnlockDisplay(dpy);
+ #endif /* !USE_XCB */
+ 
++#if USE_XCB
++	dpy->bigreq_size = xcb_get_maximum_request_length(dpy->xcb->connection);
++	if(dpy->bigreq_size <= dpy->max_request_size)
++		dpy->bigreq_size = 0;
++#endif /* USE_XCB */
++
+ /*
+  * Set up other stuff clients are always going to use.
+  */
+@@ -672,12 +675,6 @@ XOpenDisplay (
+  */
+ 	(void) XSynchronize(dpy, _Xdebug);
+ 
+-#if USE_XCB
+-	dpy->bigreq_size = xcb_get_maximum_request_length(dpy->xcb->connection);
+-	if(dpy->bigreq_size <= dpy->max_request_size)
+-		dpy->bigreq_size = 0;
+-#endif /* USE_XCB */
+-
+ /*
+  * get availability of large requests, and
+  * get the resource manager database off the root window.
+@@ -882,10 +879,6 @@ void _XFreeDisplayStructure(dpy)
+  	    Xfree (dpy->scratch_buffer);
+ 	FreeDisplayLock(dpy);
+ 
+-#if USE_XCB
+-	_XCBShutdownDisplayLock(dpy);
+-#endif /* USE_XCB */
+-
+ 	if (dpy->qfree) {
+ 	    register _XQEvent *qelt = dpy->qfree;
+ 
+diff --git a/src/Xxcbint.h b/src/Xxcbint.h
+index cc73749..e6674f9 100644
+--- a/src/Xxcbint.h
++++ b/src/Xxcbint.h
+@@ -7,7 +7,6 @@
+ #include <assert.h>
+ #include <X11/Xlibint.h>
+ #include <X11/Xlib-xcb.h>
+-#include "locking.h" /* really just want X11/Xthreads.h but can't have it. */
+ 
+ #define XCB_SEQUENCE_COMPARE(a,op,b)	((int) ((a) - (b)) op 0)
+ #define assert_sequence_less(a,b) assert(XCB_SEQUENCE_COMPARE((a), <=, (b)))
+@@ -15,24 +14,19 @@
+ typedef struct PendingRequest PendingRequest;
+ struct PendingRequest {
+ 	PendingRequest *next;
+-	xcondition_rec condition;
+-	int waiters; /* Number of threads waiting; -1 if no wait needed */
+ 	unsigned int sequence;
+ };
+ 
+ typedef struct _X11XCBPrivate {
+-	struct _XLockPtrs lock_fns;
+ 	xcb_connection_t *connection;
+ 	PendingRequest *pending_requests;
+ 	PendingRequest **pending_requests_tail;
+ 	xcb_generic_event_t *next_event;
+-	const char *request_extra;
+-	int request_extra_size;
+-	char *partial_request;
+-	int partial_request_offset;
++	char *real_bufmax;
+ 	char *reply_data;
+ 	int reply_length;
+ 	int reply_consumed;
++	unsigned int last_flushed;
+ 	enum XEventQueueOwner event_owner;
+ 	XID next_xid;
+ } _X11XCBPrivate;
+@@ -42,15 +36,4 @@ typedef struct _X11XCBPrivate {
+ int _XConnectXCB(Display *dpy, _Xconst char *display, char **fullnamep, int *screenp);
+ void _XFreeX11XCBStructure(Display *dpy);
+ 
+-/* xcb_lock.c */
+-
+-int _XCBInitDisplayLock(Display *dpy);
+-void _XCBShutdownDisplayLock(Display *dpy);
+-
+-/* _XGetXCBBuffer and _XPutXCBBuffer calls must be paired and must not
+- * be nested. */
+-
+-void _XGetXCBBuffer(Display *dpy);
+-void _XPutXCBBuffer(Display *dpy);
+-
+ #endif /* XXCBINT_H */
+diff --git a/src/xcb_io.c b/src/xcb_io.c
+index 5f07184..030b69b 100644
+--- a/src/xcb_io.c
++++ b/src/xcb_io.c
+@@ -5,7 +5,6 @@
+ #include "locking.h"
+ #include "Xxcbint.h"
+ #include <xcb/xcbext.h>
+-#include <xcb/xcbxlib.h>
+ 
+ #include <assert.h>
+ #include <stdlib.h>
+@@ -68,15 +67,6 @@ static void check_internal_connections(Display *dpy)
+ 		}
+ }
+ 
+-static void condition_wait(Display *dpy, xcondition_t cv)
+-{
+-	_XPutXCBBuffer(dpy);
+-	xcb_xlib_unlock(dpy->xcb->connection);
+-	ConditionWait(dpy, cv);
+-	xcb_xlib_lock(dpy->xcb->connection);
+-	_XGetXCBBuffer(dpy);
+-}
+-
+ static void call_handlers(Display *dpy, xcb_generic_reply_t *buf)
+ {
+ 	_XAsyncHandler *async, *next;
+@@ -139,18 +129,9 @@ static void process_responses(Display *dpy, int wait_for_first_event, xcb_generi
+ 			free(event);
+ 			event = wait_or_poll_for_event(dpy, wait_for_first_event);
+ 		}
+-		else if(req && req->waiters != -1)
++		else if(req && req->sequence == current_request)
+ 		{
+-			if(req->sequence == current_request)
+-				break;
+-			if(!current_request && !wait_for_first_event)
+-				break;
+-			dpy->xcb->next_event = event;
+-			req->waiters++;
+-			assert(req->waiters > 0);
+-			condition_wait(dpy, &req->condition);
+-			--req->waiters;
+-			event = dpy->xcb->next_event;
++			break;
+ 		}
+ 		else if(req && xcb_poll_for_reply(dpy->xcb->connection, req->sequence, &reply, &error))
+ 		{
+@@ -221,32 +202,71 @@ void _XReadEvents(Display *dpy)
+  */
+ void _XSend(Display *dpy, const char *data, long size)
+ {
++	static const xReq dummy_request;
++	static char const pad[3];
++	struct iovec vec[3];
++	_XExtension *ext;
+ 	xcb_connection_t *c = dpy->xcb->connection;
+ 	if(dpy->flags & XlibDisplayIOError)
+ 		return;
+ 
+-	assert(!dpy->xcb->request_extra);
+-	dpy->xcb->request_extra = data;
+-	dpy->xcb->request_extra_size = size;
++	if(dpy->bufptr == dpy->buffer && !size)
++		return;
+ 
+-	/* give dpy->buffer to XCB */
+-	_XPutXCBBuffer(dpy);
++	/* iff we asked XCB to set aside errors, we must pick those up
++	 * eventually. iff there are async handlers, we may have just
++	 * issued requests that will generate replies. in either case,
++	 * we need to remember to check later. */
++	if(dpy->xcb->event_owner != XlibOwnsEventQueue || dpy->async_handlers)
++	{
++		unsigned int sequence;
++		for(sequence = dpy->xcb->last_flushed; sequence < dpy->request; ++sequence)
++		{
++			PendingRequest *req = malloc(sizeof(PendingRequest));
++			assert(req);
++			req->next = 0;
++			req->sequence = sequence;
++			*dpy->xcb->pending_requests_tail = req;
++			dpy->xcb->pending_requests_tail = &req->next;
++		}
++	}
++	dpy->xcb->last_flushed = dpy->request;
+ 
+-	if(xcb_flush(c) <= 0)
+-		_XIOError(dpy);
++	vec[0].iov_base = dpy->buffer;
++	vec[0].iov_len = dpy->bufptr - dpy->buffer;
++	vec[1].iov_base = (caddr_t) data;
++	vec[1].iov_len = size;
++	vec[2].iov_base = (caddr_t) pad;
++	vec[2].iov_len = -size & 3;
++
++	for(ext = dpy->flushes; ext; ext = ext->next_flush)
++	{
++		int i;
++		for(i = 0; i < 3; ++i)
++			if(vec[i].iov_len)
++				ext->before_flush(dpy, &ext->codes, vec[i].iov_base, vec[i].iov_len);
++	}
+ 
+-	/* get a new dpy->buffer */
+-	_XGetXCBBuffer(dpy);
++	if(xcb_writev(c, vec, 3) < 0)
++		_XIOError(dpy);
++	dpy->bufptr = dpy->buffer;
++	dpy->last_req = (char *) &dummy_request;
+ 
+ 	check_internal_connections(dpy);
+ 
+-	/* A straight port of XlibInt.c would call _XSetSeqSyncFunction
+-	 * here. However that does no good: unlike traditional Xlib,
+-	 * Xlib/XCB almost never calls _XFlush because _XPutXCBBuffer
+-	 * automatically pushes requests down into XCB, so Xlib's buffer
+-	 * is empty most of the time. Since setting a synchandler has no
+-	 * effect until after UnlockDisplay returns, we may as well do
+-	 * the check in _XUnlockDisplay. */
++	_XSetSeqSyncFunction(dpy);
++}
++
++static unsigned int return_socket(void *closure)
++{
++	unsigned int request;
++	Display *dpy = closure;
++	LockDisplay(dpy);
++	_XSend(dpy, 0, 0);
++	dpy->bufmax = dpy->buffer;
++	request = dpy->request;
++	UnlockDisplay(dpy);
++	return request;
+ }
+ 
+ /*
+@@ -255,6 +275,21 @@ void _XSend(Display *dpy, const char *data, long size)
+  */
+ void _XFlush(Display *dpy)
+ {
++	if(dpy->bufmax == dpy->buffer)
++	{
++		unsigned int sent, read;
++		int flags = 0;
++		/* if we don't own the event queue, we have to ask XCB
++		 * to set our errors aside for us. */
++		if(dpy->xcb->event_owner != XlibOwnsEventQueue)
++			flags = XCB_REQUEST_CHECKED;
++		if(!xcb_take_socket(dpy->xcb->connection, return_socket, dpy,
++		                    flags, &sent, &read))
++			_XIOError(dpy);
++		dpy->xcb->last_flushed = dpy->request = sent;
++		dpy->last_request_read = read;
++		dpy->bufmax = dpy->xcb->real_bufmax;
++	}
+ 	_XSend(dpy, 0, 0);
+ 
+ 	_XEventsQueued(dpy, QueuedAfterReading);
+@@ -295,10 +330,18 @@ XID _XAllocID(Display *dpy)
+ void _XAllocIDs(Display *dpy, XID *ids, int count)
+ {
+ 	int i;
+-	_XPutXCBBuffer(dpy);
++#ifdef XTHREADS
++	if (dpy->lock)
++		(*dpy->lock->user_lock_display)(dpy);
++	UnlockDisplay(dpy);
++#endif
+ 	for (i = 0; i < count; i++)
+ 		ids[i] = xcb_generate_id(dpy->xcb->connection);
+-	_XGetXCBBuffer(dpy);
++#ifdef XTHREADS
++	LockDisplay(dpy);
++	if (dpy->lock)
++		(*dpy->lock->user_unlock_display)(dpy);
++#endif
+ }
+ 
+ static void _XFreeReplyData(Display *dpy, Bool force)
+@@ -314,14 +357,7 @@ static PendingRequest * insert_pending_request(Display *dpy)
+ 	PendingRequest **cur = &dpy->xcb->pending_requests;
+ 	while(*cur && XCB_SEQUENCE_COMPARE((*cur)->sequence, <, dpy->request))
+ 		cur = &((*cur)->next);
+-	if(*cur && (*cur)->sequence == dpy->request)
+-	{
+-		/* Replacing an existing PendingRequest should only happen once,
+-		   when calling _XReply, and the replaced PendingRequest must
+-		   not have a condition set. */
+-		assert((*cur)->waiters == -1);
+-	}
+-	else
++	if(!*cur || (*cur)->sequence != dpy->request)
+ 	{
+ 		PendingRequest *node = malloc(sizeof(PendingRequest));
+ 		assert(node);
+@@ -331,8 +367,6 @@ static PendingRequest * insert_pending_request(Display *dpy)
+ 			dpy->xcb->pending_requests_tail = &(node->next);
+ 		*cur = node;
+ 	}
+-	(*cur)->waiters = 0;
+-	xcondition_init(&((*cur)->condition));
+ 	return *cur;
+ }
+ 
+@@ -354,27 +388,15 @@ Status _XReply(Display *dpy, xReply *rep, int extra, Bool discard)
+ 	if(dpy->flags & XlibDisplayIOError)
+ 		return 0;
+ 
+-	/* Internals of UnlockDisplay done by hand here, so that we can
+-	   insert_pending_request *after* we _XPutXCBBuffer, but before we
+-	   unlock the display. */
+-	_XPutXCBBuffer(dpy);
++	_XSend(dpy, 0, 0);
+ 	current = insert_pending_request(dpy);
+-	if(!dpy->lock || dpy->lock->locking_level == 0)
+-		xcb_xlib_unlock(dpy->xcb->connection);
+-	if(dpy->xcb->lock_fns.unlock_display)
+-		dpy->xcb->lock_fns.unlock_display(dpy);
++	/* FIXME: drop the Display lock while waiting?
++	 * Complicates process_responses. */
+ 	reply = xcb_wait_for_reply(c, current->sequence, &error);
+-	LockDisplay(dpy);
+ 
+ 	check_internal_connections(dpy);
+ 	process_responses(dpy, 0, &error, current->sequence);
+ 
+-	if(current->waiters)
+-	{ /* The ConditionBroadcast macro contains an if; braces needed here. */
+-		ConditionBroadcast(dpy, &current->condition);
+-	}
+-	--current->waiters;
+-
+ 	if(error)
+ 	{
+ 		_XExtension *ext;
+diff --git a/src/xcb_lock.c b/src/xcb_lock.c
+deleted file mode 100644
+index 71b2383..0000000
+--- a/src/xcb_lock.c
++++ /dev/null
+@@ -1,235 +0,0 @@
+-/* Copyright (C) 2003-2006 Jamey Sharp, Josh Triplett
+- * This file is licensed under the MIT license. See the file COPYING. */
+-
+-#ifdef HAVE_CONFIG_H
+-#include <config.h>
+-#endif
+-
+-#include "Xlibint.h"
+-#include "locking.h"
+-#include "Xxcbint.h"
+-#include <xcb/xcbext.h>
+-#include <xcb/xcbxlib.h>
+-
+-#include <pthread.h>
+-
+-static void _XCBLockDisplay(Display *dpy)
+-{
+-    if(dpy->xcb->lock_fns.lock_display)
+-	dpy->xcb->lock_fns.lock_display(dpy);
+-    if(!dpy->lock || dpy->lock->locking_level == 0)
+-	xcb_xlib_lock(dpy->xcb->connection);
+-    if(!(dpy->flags & XlibDisplayIOError))
+-	_XGetXCBBuffer(dpy);
+-}
+-
+-/* XXX: If you change this function, update _XReply's copy of its guts! */
+-static void _XCBUnlockDisplay(Display *dpy)
+-{
+-    if(!(dpy->flags & XlibDisplayIOError))
+-    {
+-	_XPutXCBBuffer(dpy);
+-	assert(dpy->xcb->partial_request == 0);
+-	assert(xcb_get_request_sent(dpy->xcb->connection) == dpy->request);
+-
+-	/* Traditional Xlib does this in _XSend; see the Xlib/XCB version
+-	 * of that function for why we do it here instead. */
+-	_XSetSeqSyncFunction(dpy);
+-    }
+-
+-    if(!dpy->lock || dpy->lock->locking_level == 0)
+-	xcb_xlib_unlock(dpy->xcb->connection);
+-    if(dpy->xcb->lock_fns.unlock_display)
+-	dpy->xcb->lock_fns.unlock_display(dpy);
+-}
+-
+-int _XCBInitDisplayLock(Display *dpy)
+-{
+-    if(!dpy->lock_fns && !(dpy->lock_fns = Xcalloc(1, sizeof(*dpy->lock_fns))))
+-	return 0;
+-    dpy->xcb->lock_fns.lock_display = dpy->lock_fns->lock_display;
+-    dpy->lock_fns->lock_display = _XCBLockDisplay;
+-    dpy->xcb->lock_fns.unlock_display = dpy->lock_fns->unlock_display;
+-    dpy->lock_fns->unlock_display = _XCBUnlockDisplay;
+-    return 1;
+-}
+-
+-void _XCBShutdownDisplayLock(Display *dpy)
+-{
+-    if(dpy->lock_fns) {
+-	Xfree((char *)dpy->lock_fns);
+-	dpy->lock_fns = NULL;
+-    }
+-}
+-
+-void _XGetXCBBuffer(Display *dpy)
+-{
+-    static const xReq dummy_request;
+-    unsigned int xcb_req = xcb_get_request_sent(dpy->xcb->connection);
+-    if(xcb_connection_has_error(dpy->xcb->connection))
+-	_XIOError(dpy);
+-
+-    /* if Xlib has a partial request pending then XCB doesn't know about
+-     * the current request yet */
+-    if(dpy->xcb->partial_request)
+-	++xcb_req;
+-
+-    assert(XCB_SEQUENCE_COMPARE(xcb_req, >=, dpy->request));
+-    dpy->request = xcb_req;
+-
+-    dpy->last_req = (char *) &dummy_request;
+-}
+-
+-static size_t request_length(struct iovec *vec)
+-{
+-    /* we have at least part of a request. dig out the length field.
+-     * note that length fields are always in vec[0]: Xlib doesn't split
+-     * fixed-length request parts. */
+-    size_t len;
+-    assert(vec[0].iov_len >= 4);
+-    len = ((uint16_t *) vec[0].iov_base)[1];
+-    if(len == 0)
+-    {
+-	/* it's a bigrequest. dig out the *real* length field. */
+-	assert(vec[0].iov_len >= 8);
+-	len = ((uint32_t *) vec[0].iov_base)[1];
+-    }
+-    return len << 2;
+-}
+-
+-static inline int issue_complete_request(Display *dpy, int veclen, struct iovec *vec)
+-{
+-    xcb_protocol_request_t xcb_req = { 0 };
+-    unsigned int sequence;
+-    int flags = XCB_REQUEST_RAW;
+-    int i;
+-    size_t len;
+-
+-    /* skip empty iovecs. if no iovecs remain, we're done. */
+-    assert(veclen >= 0);
+-    while(veclen > 0 && vec[0].iov_len == 0)
+-	--veclen, ++vec;
+-    if(!veclen)
+-	return 0;
+-
+-    len = request_length(vec);
+-
+-    /* do we have enough data for a complete request? how many iovec
+-     * elements does it span? */
+-    for(i = 0; i < veclen; ++i)
+-    {
+-	size_t oldlen = len;
+-	len -= vec[i].iov_len;
+-	/* if len is now 0 or has wrapped, we have enough data. */
+-	if((len - 1) > oldlen)
+-	    break;
+-    }
+-    if(i == veclen)
+-	return 0;
+-
+-    /* we have enough data to issue one complete request. the remaining
+-     * code can't fail. */
+-
+-    /* len says how far we overshot our data needs. (it's "negative" if
+-     * we actually overshot, or 0 if we're right on.) */
+-    vec[i].iov_len += len;
+-    xcb_req.count = i + 1;
+-    xcb_req.opcode = ((uint8_t *) vec[0].iov_base)[0];
+-
+-    /* if we don't own the event queue, we have to ask XCB to set our
+-     * errors aside for us. */
+-    if(dpy->xcb->event_owner != XlibOwnsEventQueue)
+-	flags |= XCB_REQUEST_CHECKED;
+-
+-    /* XCB will always skip request 0; account for that in the Xlib count */
+-    if (xcb_get_request_sent(dpy->xcb->connection) == 0xffffffff)
+-	dpy->request++;
+-    /* send the accumulated request. */
+-    sequence = xcb_send_request(dpy->xcb->connection, flags, vec, &xcb_req);
+-    if(!sequence)
+-	_XIOError(dpy);
+-
+-    /* update the iovecs to refer only to data not yet sent. */
+-    vec[i].iov_len = -len;
+-
+-    /* iff we asked XCB to set aside errors, we must pick those up
+-     * eventually. iff there are async handlers, we may have just
+-     * issued requests that will generate replies. in either case,
+-     * we need to remember to check later. */
+-    if(flags & XCB_REQUEST_CHECKED || dpy->async_handlers)
+-    {
+-	PendingRequest *req = malloc(sizeof(PendingRequest));
+-	assert(req);
+-	req->next = 0;
+-	req->waiters = -1;
+-	req->sequence = sequence;
+-	*dpy->xcb->pending_requests_tail = req;
+-	dpy->xcb->pending_requests_tail = &req->next;
+-    }
+-    return 1;
+-}
+-
+-void _XPutXCBBuffer(Display *dpy)
+-{
+-    static char const pad[3];
+-    const int padsize = -dpy->xcb->request_extra_size & 3;
+-    xcb_connection_t *c = dpy->xcb->connection;
+-    _XExtension *ext;
+-    struct iovec iov[6];
+-
+-    assert_sequence_less(dpy->last_request_read, dpy->request);
+-    assert_sequence_less(xcb_get_request_sent(c), dpy->request);
+-
+-    for(ext = dpy->flushes; ext; ext = ext->next_flush)
+-    {
+-	ext->before_flush(dpy, &ext->codes, dpy->buffer, dpy->bufptr - dpy->buffer);
+-	if(dpy->xcb->request_extra)
+-	{
+-	    ext->before_flush(dpy, &ext->codes, dpy->xcb->request_extra, dpy->xcb->request_extra_size);
+-	    if(padsize)
+-		ext->before_flush(dpy, &ext->codes, pad, padsize);
+-	}
+-    }
+-
+-    iov[2].iov_base = dpy->xcb->partial_request;
+-    iov[2].iov_len = dpy->xcb->partial_request_offset;
+-    iov[3].iov_base = dpy->buffer;
+-    iov[3].iov_len = dpy->bufptr - dpy->buffer;
+-    iov[4].iov_base = (caddr_t) dpy->xcb->request_extra;
+-    iov[4].iov_len = dpy->xcb->request_extra_size;
+-    iov[5].iov_base = (caddr_t) pad;
+-    iov[5].iov_len = padsize;
+-
+-    while(issue_complete_request(dpy, 4, iov + 2))
+-	/* empty */;
+-
+-    /* first discard any completed partial_request. */
+-    if(iov[2].iov_len == 0 && dpy->xcb->partial_request)
+-    {
+-	free(dpy->xcb->partial_request);
+-	dpy->xcb->partial_request = 0;
+-	dpy->xcb->partial_request_offset = 0;
+-    }
+-
+-    /* is there anything to copy into partial_request? */
+-    if(iov[3].iov_len != 0 || iov[4].iov_len != 0 || iov[5].iov_len != 0)
+-    {
+-	int i;
+-	if(!dpy->xcb->partial_request)
+-	{
+-	    size_t len = request_length(iov + 3);
+-	    assert(!dpy->xcb->partial_request_offset);
+-	    dpy->xcb->partial_request = malloc(len);
+-	    assert(dpy->xcb->partial_request);
+-	}
+-	for(i = 3; i < sizeof(iov) / sizeof(*iov); ++i)
+-	{
+-	    memcpy(dpy->xcb->partial_request + dpy->xcb->partial_request_offset, iov[i].iov_base, iov[i].iov_len);
+-	    dpy->xcb->partial_request_offset += iov[i].iov_len;
+-	}
+-    }
+-
+-    dpy->xcb->request_extra = 0;
+-    dpy->xcb->request_extra_size = 0;
+-    dpy->bufptr = dpy->buffer;
+-}
+-- 
+1.5.4.1
+

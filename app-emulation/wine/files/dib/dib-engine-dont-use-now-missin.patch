@@ -1,0 +1,116 @@
+DIB Engine:dont use now missing winex11.drv BitBlt and PatBlt funcs
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/bitblt.c       |   25 ++++++++++++++++++-------
+ dlls/winedib.drv/dibdrv.h       |    1 -
+ dlls/winedib.drv/dibdrv_gdi32.h |    2 +-
+ dlls/winedib.drv/pen_brush.c    |    4 ++--
+ 4 files changed, 21 insertions(+), 11 deletions(-)
+
+diff --git a/dlls/winedib.drv/bitblt.c b/dlls/winedib.drv/bitblt.c
+index 5fcc9e0..680e1fd 100644
+--- a/dlls/winedib.drv/bitblt.c
++++ b/dlls/winedib.drv/bitblt.c
+@@ -512,8 +512,8 @@ BOOL DIBDRV_BitBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+     int devXSrc, devWidth;
+     int devYSrc, devHeight, zeroYSrc;
+     
+-CheckMapping(__FUNCTION__, "DEST", physDevDst);
+-CheckMapping(__FUNCTION__, "SOURCE",physDevSrc);
++//	CheckMapping(__FUNCTION__, "DEST", physDevDst);
++//	CheckMapping(__FUNCTION__, "SOURCE",physDevSrc);
+     MAYBE(TRACE("physDevDst:%p(%s%s), xDst:%d, yDst:%d, width:%d, height:%d, physDevSrc:%p(%s%s), xSrc:%d, ySrc:%d, rop:%08x\n",
+           physDevDst, physDevDst->hasDIB ? "DIB-" : "DDB", physDevDst->hasDIB ? _DIBDRVBITMAP_GetFormatName(physDevDst->physBitmap) : "",
+           xDst, yDst, width, height,
+@@ -631,8 +631,12 @@ CheckMapping(__FUNCTION__, "SOURCE",physDevSrc);
+         if(!physDevSrc || !physDevSrc->hasDIB)
+         {
+             /* source is null or has also a DDB, no need to convert anything */
+-            res = _DIBDRV_GetDisplayDriver()->pBitBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
+-                                                      physDevSrc ? physDevSrc->X11PhysDev : 0, xSrc, ySrc, rop);
++			if(_DIBDRV_GetDisplayDriver()->pBitBlt)
++				res = _DIBDRV_GetDisplayDriver()->pBitBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
++														physDevSrc ? physDevSrc->X11PhysDev : 0, xSrc, ySrc, rop);
++			else
++				res = _DIBDRV_GetDisplayDriver()->pStretchBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
++														physDevSrc ? physDevSrc->X11PhysDev : 0, xSrc, ySrc, width, height, rop);
+         }
+         else
+         {
+@@ -668,8 +672,12 @@ CheckMapping(__FUNCTION__, "SOURCE",physDevSrc);
+             zeroYSrc = 0;
+             _DIBDRV_Position_ds2ws(physDevSrc, &dummy, &zeroYSrc);
+ 
+-            res = _DIBDRV_GetDisplayDriver()->pBitBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
+-                                                      physDevSrc->X11PhysDev, xSrc, zeroYSrc, rop);
++			if(_DIBDRV_GetDisplayDriver()->pBitBlt)
++				res = _DIBDRV_GetDisplayDriver()->pBitBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
++														physDevSrc->X11PhysDev, xSrc, zeroYSrc, rop);
++			else
++				res = _DIBDRV_GetDisplayDriver()->pStretchBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
++														physDevSrc->X11PhysDev, xSrc, zeroYSrc, width, height, rop);
+             SelectObject(physDevSrc->hdc, dib);
+             DeleteObject(ddb);
+ noBlt3:
+@@ -952,7 +960,10 @@ BOOL DIBDRV_PatBlt( DIBDRVPHYSDEV *physDev, INT left, INT top, INT width, INT he
+     else
+     {
+         /* DDB selected in, use X11 driver */
+-        res = _DIBDRV_GetDisplayDriver()->pPatBlt(physDev->X11PhysDev, left, top, width, height, rop);
++		if(_DIBDRV_GetDisplayDriver()->pPatBlt)
++			res = _DIBDRV_GetDisplayDriver()->pPatBlt(physDev->X11PhysDev, left, top, width, height, rop);
++		else
++			res = _DIBDRV_GetDisplayDriver()->pStretchBlt(physDev->X11PhysDev, left, top, width, height, 0, left, top, width, height, rop);
+     }
+     return res;
+ }
+diff --git a/dlls/winedib.drv/dibdrv.h b/dlls/winedib.drv/dibdrv.h
+index 6b72254..72d6b52 100644
+--- a/dlls/winedib.drv/dibdrv.h
++++ b/dlls/winedib.drv/dibdrv.h
+@@ -33,7 +33,6 @@
+ #include "wine/debug.h"
+ #include "wingdi.h"
+ #include "winreg.h"
+-#include "wine/winbase16.h" /* GlobalLock16 */
+ 
+ #include "freetype.h"
+ 
+diff --git a/dlls/winedib.drv/dibdrv_gdi32.h b/dlls/winedib.drv/dibdrv_gdi32.h
+index 8e4eb05..4f14e5a 100644
+--- a/dlls/winedib.drv/dibdrv_gdi32.h
++++ b/dlls/winedib.drv/dibdrv_gdi32.h
+@@ -66,7 +66,7 @@ typedef struct tagDC_FUNCS
+     BOOL     (CDECL *pGetCharWidth)(PHYSDEV,UINT,UINT,LPINT);
+     BOOL     (CDECL *pGetDCOrgEx)(PHYSDEV,LPPOINT);
+     UINT     (CDECL *pGetDIBColorTable)(PHYSDEV,UINT,UINT,RGBQUAD*);
+-    INT      (CDECL *pGetDIBits)(PHYSDEV,HBITMAP,UINT,UINT,LPCVOID,const BITMAPINFO*,UINT);
++    INT      (CDECL *pGetDIBits)(PHYSDEV,HBITMAP,UINT,UINT,LPVOID,BITMAPINFO*,UINT);
+     INT      (CDECL *pGetDeviceCaps)(PHYSDEV,INT);
+     BOOL     (CDECL *pGetDeviceGammaRamp)(PHYSDEV,LPVOID);
+     BOOL     (CDECL *pGetICMProfile)(PHYSDEV,LPDWORD,LPWSTR);
+diff --git a/dlls/winedib.drv/pen_brush.c b/dlls/winedib.drv/pen_brush.c
+index 32d50fb..1d9b51a 100644
+--- a/dlls/winedib.drv/pen_brush.c
++++ b/dlls/winedib.drv/pen_brush.c
+@@ -498,7 +498,7 @@ HBRUSH DIBDRV_SelectBrush( DIBDRVPHYSDEV *physDev, HBRUSH hbrush )
+                 }
+ 
+                 /* gets brush DIB's pointer */
+-                bmi = GlobalLock16(logbrush.lbHatch);
++                bmi = GlobalLock((HGLOBAL)logbrush.lbHatch);
+         
+                 /* initializes a temporary DIB with brush's one */
+                 if(!_DIBDRVBITMAP_InitFromBitmapinfo(&src, bmi, NULL))
+@@ -525,7 +525,7 @@ HBRUSH DIBDRV_SelectBrush( DIBDRVPHYSDEV *physDev, HBRUSH hbrush )
+ 
+     err:            
+                 /* frees brush's DIB pointer */
+-                GlobalUnlock16(logbrush.lbHatch);
++                GlobalUnlock((HGLOBAL)logbrush.lbHatch);
+                 
+                 break;
+             }

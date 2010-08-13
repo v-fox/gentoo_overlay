@@ -1,0 +1,18 @@
+diff -uNr hal-0.5.11.ORIG/fdi/policy/10osvendor/10-x11-input.fdi hal-0.5.11/fdi/policy/10osvendor/10-x11-input.fdi
+--- hal-0.5.12rc1.ORIG/fdi/policy/10osvendor/10-x11-input.fdi	2009-02-03 13:15:06.000000000 +0000
++++ hal-0.5.12rc1/fdi/policy/10osvendor/10-x11-input.fdi	2009-02-03 13:15:53.000000000 +0000
+@@ -10,6 +10,14 @@
+       </match>
+     </match>
+ 
++    <match key="info.capabilities" contains="input.touchpad">
++      <merge key="input.x11_driver" type="string">mouse</merge>
++      <match key="/org/freedesktop/Hal/devices/computer:system.kernel.name"
++             string="Linux">
++        <merge key="input.x11_driver" type="string">evdev</merge>
++      </match>
++    </match>
++
+     <match key="info.capabilities" contains="input.keys">
+       <!-- If we're using Linux, we use evdev by default (falling back to
+            keyboard otherwise). -->

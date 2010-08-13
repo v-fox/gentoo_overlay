@@ -1,0 +1,33 @@
+#!/bin/bash
+
+if [ ! -f ${HOME}/.pcsx2/pcsx2 ] ; then
+        echo "You are running PCSX2 for the first time."
+        echo "Setting up your PCSX2 environment... Please wait..."
+
+        mkdir -p "${HOME}"/.pcsx2
+        cd "${HOME}"/.pcsx2
+        mkdir .pixmaps bios compat_list help inis logs memcards snap sstates
+
+        ln -s "GAMES_BINDIR"/pcsx2.bin pcsx2
+#        ln -s "GAMES_DATADIR"/"PN"/Langs/* Langs/
+#        ln -s "GAMES_DATADIR"/"PN"/compat_list/* compat_list/
+#        cp "GAMES_DATADIR"/"PN"/plugins/cfg* plugins/
+#        chmod +x "${HOME}"/.pcsx2/plugins/cfg*
+#        ln -s "GAMES_DATADIR"/"PN"/plugins/*so* plugins/
+#        ln -s "GAMES_DATADIR"/"PN"/plugins/*dat plugins/
+#        ln -s "GAMES_DATADIR"/"PN"/patches/* patches/
+        ln -s "GAMES_DATADIR"/"PN"/.pixmaps/* .pixmaps/
+#        ln -s "GAMES_DATADIR"/"PN"/*xml ./
+	for i in "GAMES_DATADIR"/"PN"/*;do
+		ln -s $i "${HOME}"/.pcsx2/`basename $i`
+	done
+fi
+
+cd "${HOME}"/.pcsx2/
+
+
+if [ "$1" = "debug" ]; then
+        exec gdb "GAMES_BINDIR"/pcsx2.bin
+else
+        exec ./pcsx2 "$@"
+fi

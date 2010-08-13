@@ -1,0 +1,26 @@
+--- SConstruct_old	2009-09-04 19:58:11.013842121 +0600
++++ SConstruct	2009-09-04 19:58:34.129843436 +0600
+@@ -53,7 +53,6 @@
+     basedir + 'Externals/LZO',
+     basedir + 'Externals/SOIL',
+     basedir + 'Externals/Lua',
+-    basedir + 'Externals/WiiUseSrc/Src',
+     basedir + 'Source/Core/VideoCommon/Src',
+     basedir + 'Source/Core/InputCommon/Src',
+     basedir + 'Source/Core/AudioCommon/Src',
+@@ -66,7 +65,6 @@
+     'Externals/LZO',
+     'Externals/SOIL',
+     'Externals/Lua',
+-    'Externals/WiiUseSrc/Src', 
+     'Source/Core/Common/Src',
+     'Source/Core/Core/Src',
+     'Source/Core/DiscIO/Src',
+@@ -82,7 +80,6 @@
+     'Source/Plugins/Plugin_PadSimple/Src',
+     'Source/Plugins/Plugin_PadSimpleEvnt/Src',
+     'Source/Plugins/Plugin_nJoy_SDL/Src',
+-    'Source/Plugins/Plugin_Wiimote/Src',
+     'Source/Core/DolphinWX/Src',
+     'Source/Core/DebuggerWX/Src',
+     ]

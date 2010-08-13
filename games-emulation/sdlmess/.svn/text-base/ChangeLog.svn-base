@@ -1,0 +1,11 @@
+# ChangeLog for games-emulation/sdlmess
+# Copyright 2006-2008 Berkano Overlay; distributed under the GPL version 2
+
+  22 Mar 2008; Ben de Groot <yngwin@gentoo.org>; +sdlmess-0.123.ebuild:
+  Version bump. Thanks to Rene Treffer in bug 152888.
+
+  23 Sep 2007; Ben de Groot (yngwin) <ben@berkano.net>;
+  +sdlmess-0.119.ebuild:
+  Importing sdlmess ebuild from https://bugs.gentoo.org/show_bug.cgi?id=152888
+  on request.
+

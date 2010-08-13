@@ -1,0 +1,25 @@
+From 961d3fde1095d071e4a7706a94996c5ecb47ca28 Mon Sep 17 00:00:00 2001
+From: Scott Ritchie <scott@open-vote.org>
+Date: Mon, 14 Sep 2009 16:25:28 -0700
+Subject: winemp3: fix build failure on 64 bit by specifying i386 symbol
+
+---
+ dlls/winemp3.acm/mpegl3.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/dlls/winemp3.acm/mpegl3.c b/dlls/winemp3.acm/mpegl3.c
+index 2d291cf..a823fab 100644
+--- a/dlls/winemp3.acm/mpegl3.c
++++ b/dlls/winemp3.acm/mpegl3.c
+@@ -398,7 +398,7 @@ static	LRESULT	MPEG3_FormatSuggest(PACMDRVFORMATSUGGEST adfs)
+  */
+ static void MPEG3_Reset(PACMDRVSTREAMINSTANCE adsi, AcmMpeg3Data* aad)
+ {
+-    mpg123_feedseek(aad->mh, 0, SEEK_SET, NULL);
++    mpg123_feedseek_64(aad->mh, 0, SEEK_SET, NULL);
+     mpg123_close(aad->mh);
+     mpg123_open_feed(aad->mh);
+ }
+-- 
+1.6.3.3
+

@@ -1,0 +1,348 @@
+From f7a9ef8199cf39e155e972b06b5e94bc700475ce Mon Sep 17 00:00:00 2001
+From: Jamey Sharp <jamey@minilop.net>
+Date: Fri, 14 Mar 2008 12:08:32 -0700
+Subject: [PATCH 1/5] Remove libxcb-xlib and xcbxlib.h.
+
+---
+ src/Makefile.am |    9 +----
+ src/xcb_conn.c  |   49 +------------------------------
+ src/xcb_xlib.c  |   87 -------------------------------------------------------
+ src/xcbint.h    |   19 +-----------
+ src/xcbxlib.h   |   44 ----------------------------
+ 5 files changed, 5 insertions(+), 203 deletions(-)
+ delete mode 100644 src/xcb_xlib.c
+ delete mode 100644 src/xcbxlib.h
+
+diff --git a/src/Makefile.am b/src/Makefile.am
+index fc613b4..fb70c92 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -1,5 +1,4 @@
+-lib_LTLIBRARIES = libxcb.la \
+-                  libxcb-xlib.la
++lib_LTLIBRARIES = libxcb.la
+ 
+ EXTHEADERS =	xproto.h \
+ 		bigreq.h \
+@@ -29,10 +28,6 @@ libxcb_la_LDFLAGS = -version-info 1:0:0
+ 
+ XCB_LIBS = libxcb.la
+ 
+-libxcb_xlib_la_LDFLAGS = -version-info 0:0:0
+-libxcb_xlib_la_LIBADD = $(XCB_LIBS)
+-libxcb_xlib_la_SOURCES = xcb_xlib.c
+-
+ # FIXME: find a way to autogenerate this from the XML files.
+ 
+ if BUILD_COMPOSITE
+@@ -237,7 +232,7 @@ endif
+ 
+ 
+ 
+-xcbinclude_HEADERS = xcb.h xcbext.h xcbxlib.h $(EXTHEADERS)
++xcbinclude_HEADERS = xcb.h xcbext.h $(EXTHEADERS)
+ noinst_HEADERS = xcbint.h
+ 
+ BUILT_SOURCES = $(EXTSOURCES) $(EXTHEADERS)
+diff --git a/src/xcb_conn.c b/src/xcb_conn.c
+index e7856c3..a2b0ab7 100644
+--- a/src/xcb_conn.c
++++ b/src/xcb_conn.c
+@@ -59,21 +59,6 @@ static int set_fd_flags(const int fd)
+     return 1;
+ }
+ 
+-static int _xcb_xlib_init(_xcb_xlib *xlib)
+-{
+-    xlib->lock = 0;
+-#ifndef NDEBUG
+-    xlib->sloppy_lock = (getenv("LIBXCB_ALLOW_SLOPPY_LOCK") != 0);
+-#endif
+-    pthread_cond_init(&xlib->cond, 0);
+-    return 1;
+-}
+-
+-static void _xcb_xlib_destroy(_xcb_xlib *xlib)
+-{
+-    pthread_cond_destroy(&xlib->cond);
+-}
+-
+ static int write_setup(xcb_connection_t *c, xcb_auth_info_t *auth_info)
+ {
+     static const char pad[3];
+@@ -230,7 +215,6 @@ xcb_connection_t *xcb_connect_to_fd(int fd, xcb_auth_info_t *auth_info)
+     if(!(
+         set_fd_flags(fd) &&
+         pthread_mutex_init(&c->iolock, 0) == 0 &&
+-        _xcb_xlib_init(&c->xlib) &&
+         _xcb_in_init(&c->in) &&
+         _xcb_out_init(&c->out) &&
+         write_setup(c, auth_info) &&
+@@ -255,7 +239,6 @@ void xcb_disconnect(xcb_connection_t *c)
+     close(c->fd);
+ 
+     pthread_mutex_destroy(&c->iolock);
+-    _xcb_xlib_destroy(&c->xlib);
+     _xcb_in_destroy(&c->in);
+     _xcb_out_destroy(&c->out);
+ 
+@@ -275,12 +258,6 @@ void _xcb_conn_shutdown(xcb_connection_t *c)
+ void _xcb_lock_io(xcb_connection_t *c)
+ {
+     pthread_mutex_lock(&c->iolock);
+-    while(c->xlib.lock)
+-    {
+-        if(pthread_equal(c->xlib.thread, pthread_self()))
+-            break;
+-        pthread_cond_wait(&c->xlib.cond, &c->iolock);
+-    }
+ }
+ 
+ void _xcb_unlock_io(xcb_connection_t *c)
+@@ -290,25 +267,12 @@ void _xcb_unlock_io(xcb_connection_t *c)
+ 
+ void _xcb_wait_io(xcb_connection_t *c, pthread_cond_t *cond)
+ {
+-    int xlib_locked = c->xlib.lock;
+-    if(xlib_locked)
+-    {
+-        c->xlib.lock = 0;
+-        pthread_cond_broadcast(&c->xlib.cond);
+-    }
+     pthread_cond_wait(cond, &c->iolock);
+-    if(xlib_locked)
+-    {
+-        while(c->xlib.lock)
+-            pthread_cond_wait(&c->xlib.cond, &c->iolock);
+-        c->xlib.lock = 1;
+-        c->xlib.thread = pthread_self();
+-    }
+ }
+ 
+ int _xcb_conn_wait(xcb_connection_t *c, pthread_cond_t *cond, struct iovec **vector, int *count)
+ {
+-    int ret, xlib_locked;
++    int ret;
+     fd_set rfds, wfds;
+ 
+     /* If the thing I should be doing is already being done, wait for it. */
+@@ -329,12 +293,6 @@ int _xcb_conn_wait(xcb_connection_t *c, pthread_cond_t *cond, struct iovec **vec
+         ++c->out.writing;
+     }
+ 
+-    xlib_locked = c->xlib.lock;
+-    if(xlib_locked)
+-    {
+-        c->xlib.lock = 0;
+-        pthread_cond_broadcast(&c->xlib.cond);
+-    }
+     _xcb_unlock_io(c);
+     do {
+ 	ret = select(c->fd + 1, &rfds, &wfds, 0, 0);
+@@ -345,11 +303,6 @@ int _xcb_conn_wait(xcb_connection_t *c, pthread_cond_t *cond, struct iovec **vec
+ 	ret = 0;
+     }
+     _xcb_lock_io(c);
+-    if(xlib_locked)
+-    {
+-        c->xlib.lock = 1;
+-        c->xlib.thread = pthread_self();
+-    }
+ 
+     if(ret)
+     {
+diff --git a/src/xcb_xlib.c b/src/xcb_xlib.c
+deleted file mode 100644
+index 1b573e8..0000000
+--- a/src/xcb_xlib.c
++++ /dev/null
+@@ -1,87 +0,0 @@
+-/* Copyright (C) 2005 Bart Massey and Jamey Sharp.
+- *
+- * Permission is hereby granted, free of charge, to any person obtaining a
+- * copy of this software and associated documentation files (the "Software"),
+- * to deal in the Software without restriction, including without limitation
+- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+- * and/or sell copies of the Software, and to permit persons to whom the
+- * Software is furnished to do so, subject to the following conditions:
+- * 
+- * The above copyright notice and this permission notice shall be included in
+- * all copies or substantial portions of the Software.
+- * 
+- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+- * AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+- * 
+- * Except as contained in this notice, the names of the authors or their
+- * institutions shall not be used in advertising or otherwise to promote the
+- * sale, use or other dealings in this Software without prior written
+- * authorization from the authors.
+- */
+-
+-#include "xcbxlib.h"
+-#include "xcbint.h"
+-
+-#include <assert.h>
+-
+-#ifdef HAVE_BACKTRACE
+-#include <execinfo.h>
+-#include <stdio.h>
+-#include <stdlib.h>
+-#endif
+-
+-static void xcb_xlib_printbt(void)
+-{
+-#ifdef HAVE_BACKTRACE
+-	void *array[20];
+-	int size;
+-	char **strings;
+-	int i;
+-
+-	size = backtrace(array, 20);
+-	strings = backtrace_symbols(array, size);
+-
+-	fprintf(stderr, "Locking assertion failure.  Backtrace:\n");
+-
+-	for (i = 0; i < size; ++i)
+-		fprintf(stderr, "#%i %s\n", i, strings[i]);
+-
+-	free(strings);
+-#endif
+-}
+-
+-#ifndef NDEBUG
+-#define xcb_assert(c,x) do { if (!(x)) { xcb_xlib_printbt(); if (!(c)->xlib.sloppy_lock) assert(x); } } while(0)
+-#else
+-#define xcb_assert(c,x)
+-#endif
+-
+-unsigned int xcb_get_request_sent(xcb_connection_t *c)
+-{
+-    if(c->has_error)
+-        return 0;
+-    return c->out.request;
+-}
+-
+-void xcb_xlib_lock(xcb_connection_t *c)
+-{
+-    _xcb_lock_io(c);
+-    xcb_assert(c, !c->xlib.lock);
+-    c->xlib.lock = 1;
+-    c->xlib.thread = pthread_self();
+-    _xcb_unlock_io(c);
+-}
+-
+-void xcb_xlib_unlock(xcb_connection_t *c)
+-{
+-    _xcb_lock_io(c);
+-    xcb_assert(c, c->xlib.lock);
+-    xcb_assert(c, pthread_equal(c->xlib.thread, pthread_self()));
+-    c->xlib.lock = 0;
+-    pthread_cond_broadcast(&c->xlib.cond);
+-    _xcb_unlock_io(c);
+-}
+diff --git a/src/xcbint.h b/src/xcbint.h
+index ab0264f..86e00a4 100644
+--- a/src/xcbint.h
++++ b/src/xcbint.h
+@@ -126,16 +126,6 @@ int _xcb_in_read(xcb_connection_t *c);
+ int _xcb_in_read_block(xcb_connection_t *c, void *buf, int nread);
+ 
+ 
+-/* xcb_xlib.c */
+-
+-typedef struct _xcb_xlib {
+-    int lock;
+-    int sloppy_lock;
+-    pthread_t thread;
+-    pthread_cond_t cond;
+-} _xcb_xlib;
+-
+-
+ /* xcb_xid.c */
+ 
+ typedef struct _xcb_xid {
+@@ -173,7 +163,6 @@ struct xcb_connection_t {
+ 
+     /* I/O data */
+     pthread_mutex_t iolock;
+-    _xcb_xlib xlib;
+     _xcb_in in;
+     _xcb_out out;
+ 
+@@ -183,6 +172,8 @@ struct xcb_connection_t {
+ };
+ 
+ void _xcb_conn_shutdown(xcb_connection_t *c);
++void _xcb_lock_io(xcb_connection_t *c);
++void _xcb_unlock_io(xcb_connection_t *c);
+ void _xcb_wait_io(xcb_connection_t *c, pthread_cond_t *cond);
+ int _xcb_conn_wait(xcb_connection_t *c, pthread_cond_t *cond, struct iovec **vector, int *count);
+ 
+@@ -195,10 +186,4 @@ int _xcb_get_auth_info(int fd, xcb_auth_info_t *info, int display);
+ #pragma GCC visibility pop
+ #endif
+ 
+-
+-/* xcb_conn.c symbols visible to xcb-xlib */
+-
+-void _xcb_lock_io(xcb_connection_t *c);
+-void _xcb_unlock_io(xcb_connection_t *c);
+-
+ #endif
+diff --git a/src/xcbxlib.h b/src/xcbxlib.h
+deleted file mode 100644
+index 4cb5cd4..0000000
+--- a/src/xcbxlib.h
++++ /dev/null
+@@ -1,44 +0,0 @@
+-/*
+- * Copyright (C) 2005 Bart Massey and Jamey Sharp.
+- * All Rights Reserved.
+- *
+- * Permission is hereby granted, free of charge, to any person obtaining a
+- * copy of this software and associated documentation files (the "Software"),
+- * to deal in the Software without restriction, including without limitation
+- * the rights to use, copy, modify, merge, publish, distribute, sublicense,
+- * and/or sell copies of the Software, and to permit persons to whom the
+- * Software is furnished to do so, subject to the following conditions:
+- * 
+- * The above copyright notice and this permission notice shall be included in
+- * all copies or substantial portions of the Software.
+- * 
+- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+- * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+- * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+- * AUTHORS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN
+- * ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
+- * CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+- * 
+- * Except as contained in this notice, the names of the authors or their
+- * institutions shall not be used in advertising or otherwise to promote the
+- * sale, use or other dealings in this Software without prior written
+- * authorization from the authors.
+- */
+-
+-/* This include file declares functions used by Xlib/XCB, but nothing else
+- * should ever use these functions or link to libxcb-xlib. */
+-
+-#ifndef __XCBXLIB_H
+-#define __XCBXLIB_H
+-
+-#include <pthread.h>
+-#include "xcb.h"
+-
+-/* The caller of this function must hold the xlib lock, using the lock
+- * functions below. */
+-unsigned int xcb_get_request_sent(xcb_connection_t *c);
+-
+-void xcb_xlib_lock(xcb_connection_t *c);
+-void xcb_xlib_unlock(xcb_connection_t *c);
+-
+-#endif
+-- 
+1.5.4.1
+

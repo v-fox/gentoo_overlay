@@ -1,0 +1,212 @@
+From f75a1ec0d605374ae21014dbf0d15b4a7ac5239c Mon Sep 17 00:00:00 2001
+From: Jamey Sharp <jamey@minilop.net>
+Date: Fri, 14 Mar 2008 12:08:58 -0700
+Subject: [PATCH 2/5] Inline _xcb_lock_io, _xcb_unlock_io, and _xcb_wait_io.
+
+These functions are once again a single pthread call, so just make that
+call directly.
+---
+ src/xcb_conn.c |   25 +++++--------------------
+ src/xcb_in.c   |   16 ++++++++--------
+ src/xcb_out.c  |   12 ++++++------
+ src/xcbint.h   |    3 ---
+ 4 files changed, 19 insertions(+), 37 deletions(-)
+
+diff --git a/src/xcb_conn.c b/src/xcb_conn.c
+index a2b0ab7..75ab519 100644
+--- a/src/xcb_conn.c
++++ b/src/xcb_conn.c
+@@ -97,12 +97,12 @@ static int write_setup(xcb_connection_t *c, xcb_auth_info_t *auth_info)
+     }
+     assert(count <= sizeof(parts) / sizeof(*parts));
+ 
+-    _xcb_lock_io(c);
++    pthread_mutex_lock(&c->iolock);
+     {
+         struct iovec *parts_ptr = parts;
+         ret = _xcb_out_send(c, &parts_ptr, &count);
+     }
+-    _xcb_unlock_io(c);
++    pthread_mutex_unlock(&c->iolock);
+     return ret;
+ }
+ 
+@@ -255,21 +255,6 @@ void _xcb_conn_shutdown(xcb_connection_t *c)
+     c->has_error = 1;
+ }
+ 
+-void _xcb_lock_io(xcb_connection_t *c)
+-{
+-    pthread_mutex_lock(&c->iolock);
+-}
+-
+-void _xcb_unlock_io(xcb_connection_t *c)
+-{
+-    pthread_mutex_unlock(&c->iolock);
+-}
+-
+-void _xcb_wait_io(xcb_connection_t *c, pthread_cond_t *cond)
+-{
+-    pthread_cond_wait(cond, &c->iolock);
+-}
+-
+ int _xcb_conn_wait(xcb_connection_t *c, pthread_cond_t *cond, struct iovec **vector, int *count)
+ {
+     int ret;
+@@ -278,7 +263,7 @@ int _xcb_conn_wait(xcb_connection_t *c, pthread_cond_t *cond, struct iovec **vec
+     /* If the thing I should be doing is already being done, wait for it. */
+     if(count ? c->out.writing : c->in.reading)
+     {
+-        _xcb_wait_io(c, cond);
++        pthread_cond_wait(cond, &c->iolock);
+         return 1;
+     }
+ 
+@@ -293,7 +278,7 @@ int _xcb_conn_wait(xcb_connection_t *c, pthread_cond_t *cond, struct iovec **vec
+         ++c->out.writing;
+     }
+ 
+-    _xcb_unlock_io(c);
++    pthread_mutex_unlock(&c->iolock);
+     do {
+ 	ret = select(c->fd + 1, &rfds, &wfds, 0, 0);
+     } while (ret == -1 && errno == EINTR);
+@@ -302,7 +287,7 @@ int _xcb_conn_wait(xcb_connection_t *c, pthread_cond_t *cond, struct iovec **vec
+         _xcb_conn_shutdown(c);
+ 	ret = 0;
+     }
+-    _xcb_lock_io(c);
++    pthread_mutex_lock(&c->iolock);
+ 
+     if(ret)
+     {
+diff --git a/src/xcb_in.c b/src/xcb_in.c
+index 2997de4..14de474 100644
+--- a/src/xcb_in.c
++++ b/src/xcb_in.c
+@@ -319,7 +319,7 @@ void *xcb_wait_for_reply(xcb_connection_t *c, unsigned int request, xcb_generic_
+     if(c->has_error)
+         return 0;
+ 
+-    _xcb_lock_io(c);
++    pthread_mutex_lock(&c->iolock);
+ 
+     /* If this request has not been written yet, write it. */
+     if(_xcb_out_flush_to(c, request))
+@@ -359,7 +359,7 @@ void *xcb_wait_for_reply(xcb_connection_t *c, unsigned int request, xcb_generic_
+     }
+ 
+     wake_up_next_reader(c);
+-    _xcb_unlock_io(c);
++    pthread_mutex_unlock(&c->iolock);
+     return ret;
+ }
+ 
+@@ -374,9 +374,9 @@ int xcb_poll_for_reply(xcb_connection_t *c, unsigned int request, void **reply,
+         return 1; /* would not block */
+     }
+     assert(reply != 0);
+-    _xcb_lock_io(c);
++    pthread_mutex_lock(&c->iolock);
+     ret = poll_for_reply(c, request, reply, error);
+-    _xcb_unlock_io(c);
++    pthread_mutex_unlock(&c->iolock);
+     return ret;
+ }
+ 
+@@ -385,14 +385,14 @@ xcb_generic_event_t *xcb_wait_for_event(xcb_connection_t *c)
+     xcb_generic_event_t *ret;
+     if(c->has_error)
+         return 0;
+-    _xcb_lock_io(c);
++    pthread_mutex_lock(&c->iolock);
+     /* get_event returns 0 on empty list. */
+     while(!(ret = get_event(c)))
+         if(!_xcb_conn_wait(c, &c->in.event_cond, 0, 0))
+             break;
+ 
+     wake_up_next_reader(c);
+-    _xcb_unlock_io(c);
++    pthread_mutex_unlock(&c->iolock);
+     return ret;
+ }
+ 
+@@ -401,12 +401,12 @@ xcb_generic_event_t *xcb_poll_for_event(xcb_connection_t *c)
+     xcb_generic_event_t *ret = 0;
+     if(!c->has_error)
+     {
+-        _xcb_lock_io(c);
++        pthread_mutex_lock(&c->iolock);
+         /* FIXME: follow X meets Z architecture changes. */
+         ret = get_event(c);
+         if(!ret && _xcb_in_read(c)) /* _xcb_in_read shuts down the connection on error */
+             ret = get_event(c);
+-        _xcb_unlock_io(c);
++        pthread_mutex_unlock(&c->iolock);
+     }
+     return ret;
+ }
+diff --git a/src/xcb_out.c b/src/xcb_out.c
+index 60226e5..bd6d981 100644
+--- a/src/xcb_out.c
++++ b/src/xcb_out.c
+@@ -187,10 +187,10 @@ unsigned int xcb_send_request(xcb_connection_t *c, int flags, struct iovec *vect
+         workaround = WORKAROUND_GLX_GET_FB_CONFIGS_BUG;
+ 
+     /* get a sequence number and arrange for delivery. */
+-    _xcb_lock_io(c);
++    pthread_mutex_lock(&c->iolock);
+     /* wait for other writing threads to get out of my way. */
+     while(c->out.writing)
+-        _xcb_wait_io(c, &c->out.cond);
++        pthread_cond_wait(&c->out.cond, &c->iolock);
+ 
+     request = ++c->out.request;
+     /* send GetInputFocus (sync) when 64k-2 requests have been sent without
+@@ -231,7 +231,7 @@ unsigned int xcb_send_request(xcb_connection_t *c, int flags, struct iovec *vect
+         _xcb_conn_shutdown(c);
+         request = 0;
+     }
+-    _xcb_unlock_io(c);
++    pthread_mutex_unlock(&c->iolock);
+     return request;
+ }
+ 
+@@ -240,9 +240,9 @@ int xcb_flush(xcb_connection_t *c)
+     int ret;
+     if(c->has_error)
+         return 0;
+-    _xcb_lock_io(c);
++    pthread_mutex_lock(&c->iolock);
+     ret = _xcb_out_flush_to(c, c->out.request);
+-    _xcb_unlock_io(c);
++    pthread_mutex_unlock(&c->iolock);
+     return ret;
+ }
+ 
+@@ -297,7 +297,7 @@ int _xcb_out_flush_to(xcb_connection_t *c, unsigned int request)
+         return _xcb_out_send(c, &vec_ptr, &count);
+     }
+     while(c->out.writing)
+-        _xcb_wait_io(c, &c->out.cond);
++        pthread_cond_wait(&c->out.cond, &c->iolock);
+     assert(XCB_SEQUENCE_COMPARE(c->out.request_written, >=, request));
+     return 1;
+ }
+diff --git a/src/xcbint.h b/src/xcbint.h
+index 86e00a4..d610a10 100644
+--- a/src/xcbint.h
++++ b/src/xcbint.h
+@@ -172,9 +172,6 @@ struct xcb_connection_t {
+ };
+ 
+ void _xcb_conn_shutdown(xcb_connection_t *c);
+-void _xcb_lock_io(xcb_connection_t *c);
+-void _xcb_unlock_io(xcb_connection_t *c);
+-void _xcb_wait_io(xcb_connection_t *c, pthread_cond_t *cond);
+ int _xcb_conn_wait(xcb_connection_t *c, pthread_cond_t *cond, struct iovec **vector, int *count);
+ 
+ 
+-- 
+1.5.4.1
+

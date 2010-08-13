@@ -1,0 +1,15 @@
+diff -uNr hal-0.5.12rc1.ORIG/fdi/policy/10osvendor/20-storage-methods.fdi hal-0.5.12rc1/fdi/policy/10osvendor/20-storage-methods.fdi
+--- hal-0.5.12rc1.ORIG/fdi/policy/10osvendor/20-storage-methods.fdi	2009-03-08 20:54:14.000000000 +0000
++++ hal-0.5.12rc1/fdi/policy/10osvendor/20-storage-methods.fdi	2009-03-08 20:54:37.000000000 +0000
+@@ -93,6 +93,11 @@
+ 	</match>
+       </match>
+ 
++      <!-- Hide partitions marked as Compaq Diagnostics -->
++      <match key="volume.partition.type" string="0x12">
++         <merge key="volume.ignore" type="bool">true</merge>
++      </match>
++
+       <!-- EFI firmware partitions -->
+       <match key="volume.fstype" string="vfat">
+ 	<match key="volume.label" string="EFI">

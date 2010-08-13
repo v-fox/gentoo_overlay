@@ -1,0 +1,263 @@
+From 0b43d98ed1ecb958da0589a5b642d8f3ab177d48 Mon Sep 17 00:00:00 2001
+From: Josh Triplett <josh@freedesktop.org>
+Date: Sun, 16 Mar 2008 23:16:31 -0700
+Subject: [PATCH 4/5] Support handing off socket write permission to external code.
+
+Libraries like Xlib, some XCB language bindings, and potentially others
+have a common problem: they want to share the X connection with XCB. This
+requires coordination of request sequence numbers.  Previously, XCB had an
+Xlib-specific lock, and allowed Xlib to block XCB from making requests.
+Now we've replaced that lock with a handoff mechanism, xcb_take_socket,
+allowing external code to ask XCB for permission to take over the write
+side of the socket and send raw data with xcb_writev.  The caller of
+xcb_take_socket must supply a callback which XCB can call when it wants
+the write side of the socket back to make a request.  This callback
+synchronizes with the external socket owner, flushes any output queues if
+appropriate, and then returns the sequence number of the last request sent
+over the socket.
+
+Commit by Josh Triplett and Jamey Sharp.
+Handoff mechanism inspired by Keith Packard.
+---
+ src/Makefile.am |    2 +-
+ src/xcb_in.c    |   22 +++++++++++++++++--
+ src/xcb_out.c   |   61 +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ src/xcbext.h    |   16 ++++++++++++++
+ src/xcbint.h    |   13 ++++++++++-
+ 5 files changed, 109 insertions(+), 5 deletions(-)
+
+diff --git a/src/Makefile.am b/src/Makefile.am
+index fb70c92..0cd16f5 100644
+--- a/src/Makefile.am
++++ b/src/Makefile.am
+@@ -24,7 +24,7 @@ libxcb_la_SOURCES = \
+ # * If you add an interface, increment current and age and set revision to 0.
+ # * If you change or remove an interface, increment current and set revision
+ #   and age to 0.
+-libxcb_la_LDFLAGS = -version-info 1:0:0
++libxcb_la_LDFLAGS = -version-info 2:0:1
+ 
+ XCB_LIBS = libxcb.la
+ 
+diff --git a/src/xcb_in.c b/src/xcb_in.c
+index aa462f0..6266d19 100644
+--- a/src/xcb_in.c
++++ b/src/xcb_in.c
+@@ -111,6 +111,7 @@ static int read_packet(xcb_connection_t *c)
+         }
+ 
+         while(c->in.pending_replies && 
++              c->in.pending_replies->workaround != WORKAROUND_EXTERNAL_SOCKET_OWNER &&
+ 	      XCB_SEQUENCE_COMPARE (c->in.pending_replies->last_request, <=, c->in.request_completed))
+         {
+             pending_reply *oldpend = c->in.pending_replies;
+@@ -128,8 +129,9 @@ static int read_packet(xcb_connection_t *c)
+     {
+         pend = c->in.pending_replies;
+         if(pend &&
+-           (XCB_SEQUENCE_COMPARE(c->in.request_read, <, pend->first_request) ||
+-            XCB_SEQUENCE_COMPARE(c->in.request_read, >, pend->last_request)))
++           !(XCB_SEQUENCE_COMPARE(pend->first_request, <=, c->in.request_read) &&
++             (pend->workaround == WORKAROUND_EXTERNAL_SOCKET_OWNER ||
++              XCB_SEQUENCE_COMPARE(c->in.request_read, <=, pend->last_request))))
+             pend = 0;
+     }
+ 
+@@ -325,7 +327,7 @@ void *xcb_wait_for_reply(xcb_connection_t *c, unsigned int request, xcb_generic_
+     pthread_mutex_lock(&c->iolock);
+ 
+     /* If this request has not been written yet, write it. */
+-    if(_xcb_out_flush_to(c, request))
++    if(c->out.return_socket || _xcb_out_flush_to(c, request))
+     {
+         pthread_cond_t cond = PTHREAD_COND_INITIALIZER;
+         reader_list reader;
+@@ -496,6 +498,20 @@ int _xcb_in_expect_reply(xcb_connection_t *c, unsigned int request, enum workaro
+     return 1;
+ }
+ 
++void _xcb_in_replies_done(xcb_connection_t *c)
++{
++    struct pending_reply *pend;
++    if (c->in.pending_replies_tail != &c->in.pending_replies)
++    {
++        pend = container_of(c->in.pending_replies_tail, struct pending_reply, next);
++        if(pend->workaround == WORKAROUND_EXTERNAL_SOCKET_OWNER)
++        {
++            pend->last_request = c->out.request;
++            pend->workaround = WORKAROUND_NONE;
++        }
++    }
++}
++
+ int _xcb_in_read(xcb_connection_t *c)
+ {
+     int n = read(c->fd, c->in.queue + c->in.queue_len, sizeof(c->in.queue) - c->in.queue_len);
+diff --git a/src/xcb_out.c b/src/xcb_out.c
+index bd6d981..8af211b 100644
+--- a/src/xcb_out.c
++++ b/src/xcb_out.c
+@@ -55,6 +55,27 @@ static int write_block(xcb_connection_t *c, struct iovec *vector, int count)
+     return _xcb_out_send(c, &vector, &count);
+ }
+ 
++static void get_socket_back(xcb_connection_t *c)
++{
++    unsigned int new_request;
++    while(c->out.return_socket && c->out.socket_moving)
++        pthread_cond_wait(&c->out.socket_cond, &c->iolock);
++    if(!c->out.return_socket)
++        return;
++
++    c->out.socket_moving = 1;
++    pthread_mutex_unlock(&c->iolock);
++    new_request = c->out.return_socket(c->out.socket_closure);
++    pthread_mutex_lock(&c->iolock);
++    c->out.socket_moving = 0;
++
++    pthread_cond_broadcast(&c->out.socket_cond);
++    c->out.return_socket = 0;
++    c->out.socket_closure = 0;
++    c->out.request_written = c->out.request = new_request;
++    _xcb_in_replies_done(c);
++}
++
+ /* Public interface */
+ 
+ void xcb_prefetch_maximum_request_length(xcb_connection_t *c)
+@@ -191,6 +212,7 @@ unsigned int xcb_send_request(xcb_connection_t *c, int flags, struct iovec *vect
+     /* wait for other writing threads to get out of my way. */
+     while(c->out.writing)
+         pthread_cond_wait(&c->out.cond, &c->iolock);
++    get_socket_back(c);
+ 
+     request = ++c->out.request;
+     /* send GetInputFocus (sync) when 64k-2 requests have been sent without
+@@ -235,6 +257,39 @@ unsigned int xcb_send_request(xcb_connection_t *c, int flags, struct iovec *vect
+     return request;
+ }
+ 
++int xcb_take_socket(xcb_connection_t *c, unsigned int (*return_socket)(void *closure), void *closure, int flags, unsigned int *sent, unsigned int *read)
++{
++    int ret;
++    if(c->has_error)
++        return 0;
++    pthread_mutex_lock(&c->iolock);
++    get_socket_back(c);
++    ret = _xcb_out_flush_to(c, c->out.request);
++    if(ret)
++    {
++        c->out.return_socket = return_socket;
++        c->out.socket_closure = closure;
++        if(flags)
++            _xcb_in_expect_reply(c, c->out.request, WORKAROUND_EXTERNAL_SOCKET_OWNER, flags);
++        assert(c->out.request == c->out.request_written);
++        *sent = c->out.request;
++        *read = c->in.request_read;
++    }
++    pthread_mutex_unlock(&c->iolock);
++    return ret;
++}
++
++int xcb_writev(xcb_connection_t *c, struct iovec *vector, int count)
++{
++    int ret;
++    if(c->has_error)
++        return 0;
++    pthread_mutex_lock(&c->iolock);
++    ret = _xcb_out_send(c, &vector, &count);
++    pthread_mutex_unlock(&c->iolock);
++    return ret;
++}
++
+ int xcb_flush(xcb_connection_t *c)
+ {
+     int ret;
+@@ -250,6 +305,12 @@ int xcb_flush(xcb_connection_t *c)
+ 
+ int _xcb_out_init(_xcb_out *out)
+ {
++    if(pthread_cond_init(&out->socket_cond, 0))
++        return 0;
++    out->return_socket = 0;
++    out->socket_closure = 0;
++    out->socket_moving = 0;
++
+     if(pthread_cond_init(&out->cond, 0))
+         return 0;
+     out->writing = 0;
+diff --git a/src/xcbext.h b/src/xcbext.h
+index 01dd590..67d4470 100644
+--- a/src/xcbext.h
++++ b/src/xcbext.h
+@@ -59,6 +59,22 @@ enum xcb_send_request_flags_t {
+ 
+ unsigned int xcb_send_request(xcb_connection_t *c, int flags, struct iovec *vector, const xcb_protocol_request_t *request);
+ 
++/* xcb_take_socket allows external code to ask XCB for permission to
++ * take over the write side of the socket and send raw data with
++ * xcb_writev. xcb_take_socket provides the sequence number of the last
++ * request XCB sent and the sequence number of the last response XCB
++ * received.  The caller of xcb_take_socket must supply a callback which
++ * XCB can call when it wants the write side of the socket back to make
++ * a request.  This callback synchronizes with the external socket
++ * owner, flushes any output queues if appropriate, and then returns the
++ * sequence number of the last request sent over the socket. */
++int xcb_take_socket(xcb_connection_t *c, unsigned int (*return_socket)(void *closure), void *closure, int flags, unsigned int *sent, unsigned int *read);
++
++/* You must own the write-side of the socket (you've called xcb_take_socket,
++ * and haven't returned from return_socket yet) to call xcb_writev.  Also, the
++ * iovec must have at least 1 byte of data in it. */
++int xcb_writev(xcb_connection_t *c, struct iovec *vector, int count);
++
+ 
+ /* xcb_in.c */
+ 
+diff --git a/src/xcbint.h b/src/xcbint.h
+index d610a10..cbf578c 100644
+--- a/src/xcbint.h
++++ b/src/xcbint.h
+@@ -40,7 +40,8 @@
+ 
+ enum workarounds {
+     WORKAROUND_NONE,
+-    WORKAROUND_GLX_GET_FB_CONFIGS_BUG
++    WORKAROUND_GLX_GET_FB_CONFIGS_BUG,
++    WORKAROUND_EXTERNAL_SOCKET_OWNER
+ };
+ 
+ enum lazy_reply_tag
+@@ -54,6 +55,10 @@ enum lazy_reply_tag
+ 
+ #define XCB_SEQUENCE_COMPARE(a,op,b)	((int) ((a) - (b)) op 0)
+ 
++#define offsetof(type,member) ((size_t) &((type *)0)->member)
++
++#define container_of(pointer,type,member) ((type *)(((char *)(pointer)) - offsetof(type, member)))
++
+ /* xcb_list.c */
+ 
+ typedef void (*xcb_list_free_func_t)(void *);
+@@ -72,6 +77,11 @@ typedef struct _xcb_out {
+     pthread_cond_t cond;
+     int writing;
+ 
++    pthread_cond_t socket_cond;
++    unsigned int (*return_socket)(void *closure);
++    void *socket_closure;
++    int socket_moving;
++
+     char queue[4096];
+     int queue_len;
+ 
+@@ -121,6 +131,7 @@ int _xcb_in_init(_xcb_in *in);
+ void _xcb_in_destroy(_xcb_in *in);
+ 
+ int _xcb_in_expect_reply(xcb_connection_t *c, unsigned int request, enum workarounds workaround, int flags);
++void _xcb_in_replies_done(xcb_connection_t *c);
+ 
+ int _xcb_in_read(xcb_connection_t *c);
+ int _xcb_in_read_block(xcb_connection_t *c, void *buf, int nread);
+-- 
+1.5.4.1
+

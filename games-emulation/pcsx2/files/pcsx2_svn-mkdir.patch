@@ -1,0 +1,11 @@
+--- /usr/portage/distfiles/svn-src/pcsx2-read-only/trunk/pcsx2/Linux/LnxMain.cpp	2009-03-09 19:44:55.000000000 +0500
++++ pcsx2/Linux/LnxMain.cpp	2009-03-11 01:08:58.532937466 +0500
+@@ -50,7 +50,7 @@
+ 	sprintf(Config.InisDir, "%s/%s/", MAIN_DIR, DEFAULT_INIS_DIR);
+ 	sprintf(cfgfile, "%s/pcsx2.cfg", Config.InisDir);
+ #else
+-	mkdir("~/.pcsx2");
++	mkdir("~/.pcsx2", 755);
+ 	chdir("~/.pcsx2");
+ 	mkdir(DEFAULT_INIS_DIR, 0755);
+ 	sprintf(Config.InisDir, "~/.pcsx2/%s/", DEFAULT_INIS_DIR);

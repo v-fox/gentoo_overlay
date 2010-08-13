@@ -1,0 +1,100 @@
+#!/bin/bash
+
+if [ -z $1 ] || [ "--help" = "$1" ]; then
+	echo -e "Usage: qemu_exec [cdrom\image name | /dev/null] | --help"
+	exit 1
+fi
+
+[ `uname -s` = "Linux" ] && export QEMU_AUDIO_DRV=alsa || export QEMU_AUDIO_DRV=oss
+
+echo "Path to HDD or HDD image (n|none|null for none)"
+read HDD
+case $HDD in 
+	n | none | null | "" )	HDD=""
+				echo "Proceeding without HDD";;
+	*)			HDD="-hda $HDD"
+				echo "ok";;
+esac
+
+echo -e "How to boot ? \n Boot on floppy (a), hard disk (c), CD-ROM (d), or Etherboot (n). Hard disk boot is the default."
+read BOOT
+case $BOOT in 
+	a | c | d | n ) echo "Good. \"$BOOT\" set";;
+	*)		BOOT=d
+			echo "Bad. \"d\" set";;
+esac
+
+echo "With kernel module ? yes\no"
+read KERNEL
+case "$KERNEL" in
+	Yes | yes | Y | y ) 	[ ! -f /dev/kqemu ] && [[ `id -u` == 0 ]] && /sbin/modprobe kqemu
+				MODULE="-kernel-kqemu";;
+	No | no | N | n ) 	MODULE="-no-kqemu -smp `grep processor /proc/cpuinfo|wc -l`";;
+	* ) 			echo "Wtf ? whatever..."
+				MODULE="";;
+esac
+
+echo "Which clock ? `[[ $(id -u) == 0 ]] && echo 'hpet (h)\rtc (r)\'`dynticks (d)\unix (u)"
+read CLOCK
+case "$CLOCK" in
+	h | hpet)	CLOCK=hpet;;
+	r | rtc)	CLOCK=rtc;;
+	d | dynticks)	CLOCK=dynticks;;
+	u | unix)	CLOCK=unix;;
+	*)		echo "Wrong. Assuming unix..."
+			CLOCK="unix";;
+esac
+
+QEMU="/usr/bin/qemu-system-`uname -m` \
+	-m 512 `[[ $(date +%Z) == "UTC" ]] || echo '-localtime'` -k `echo $LANG|cut -b 1,2` \
+	-usb -soundhw sb16 -boot $BOOT $MODULE -clock $CLOCK $HDD -cdrom"
+CDROM=`[ -f "$1" ] && echo "$1" || echo /dev/null`
+NET="wtf"
+NIC="-net nic,model=rtl8139"
+
+if [[ `id -u` == 0 ]]; then
+	echo "With networking ? yes\no"
+	read NETWORKING
+	while [[ $NET == "wtf" ]]; do
+		case "$NETWORKING" in
+			Yes | yes | Y | y )
+				echo -e "vde\\\tap\\\user ?\\n net-misc/vde required for vde\\n net-misc/bridge-utils required for tap\\n usermode is self-sufficient"
+				read TYPE
+				case "$TYPE" in
+				vde )
+					NET=""
+					/etc/init.d/vde start
+					/etc/init.d/net.tap0 start
+					sudo -u $USER $QEMU $CDROM $NET
+					/etc/init.d/net.tap0 stop
+					/etc/init.d/vde stop;;
+				tap )
+					NET="-net tap,ifname=tap0,script=no,downscript=no"
+					/etc/init.d/net.tap0 start
+					/sbin/modprobe bridge
+					/etc/init.d/net.br0 start
+					sudo -u $USER $QEMU $CDROM $NIC $NET
+					/etc/init.d/net.br0 stop
+					/etc/init.d/net.tap0 stop
+					/sbin/rmmod bridge;;
+				user ) 
+					NET="-net user"
+					/etc/init.d/net.br0 start
+					sudo -u $USER $QEMU $CDROM $NIC $NET
+					/etc/init.d/net.br0 stop;;
+				* )	
+					echo "Wrong choice, try again..."
+					NET="wtf";;
+				esac;;
+			No | no | N | n )
+					NET="-net none"
+					sudo -u $USER $QEMU $CDROM $NET;;
+			* )	
+					echo "What ? try again..."
+					NET="wtf";;
+		esac
+	done
+	else
+		NET="-net user" 
+		exec $QEMU $CDROM $NIC $NET
+fi

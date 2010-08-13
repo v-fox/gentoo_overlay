@@ -1,0 +1,28 @@
+diff -uNr hal-0.5.12rc1.ORIG/fdi/policy/10osvendor/99-storage-policy-fixed-drives.fdi hal-0.5.12rc1/fdi/policy/10osvendor/99-storage-policy-fixed-drives.fdi
+--- hal-0.5.12rc1.ORIG/fdi/policy/10osvendor/99-storage-policy-fixed-drives.fdi	1970-01-01 01:00:00.000000000 +0100
++++ hal-0.5.12rc1/fdi/policy/10osvendor/99-storage-policy-fixed-drives.fdi	2009-03-08 21:03:55.000000000 +0000
+@@ -0,0 +1,11 @@
++<?xml version="1.0" encoding="UTF-8"?> <!-- -*- SGML -*- --> 
++
++<deviceinfo version="0.2">
++<device>
++  <match key="@block.storage_device:storage.hotpluggable" bool="false">
++    <match key="@block.storage_device:storage.removable" bool="false">
++      <merge key="volume.ignore" type="bool">true</merge>
++    </match>
++  </match>
++</device>
++</deviceinfo>
+diff -uNr hal-0.5.12rc1.ORIG/fdi/policy/10osvendor/Makefile.am hal-0.5.12rc1/fdi/policy/10osvendor/Makefile.am
+--- hal-0.5.12rc1.ORIG/fdi/policy/10osvendor/Makefile.am	2009-03-08 21:03:32.000000000 +0000
++++ hal-0.5.12rc1/fdi/policy/10osvendor/Makefile.am	2009-03-08 21:03:55.000000000 +0000
+@@ -11,7 +12,8 @@
+ 	10-x11-input.fdi		\
+ 	15-storage-luks.fdi		\
+ 	20-storage-methods.fdi		\
+-	30-wol.fdi
++	30-wol.fdi			\
++	99-storage-policy-fixed-drives.fdi
+ 
+ if BUILD_KEYMAPS
+ dist_fdi_DATA += 10-keymap.fdi

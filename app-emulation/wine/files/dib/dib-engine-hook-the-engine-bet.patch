@@ -1,0 +1,183 @@
+From a527c1211c5a1c19558a25443c1482d37566b943 Mon Sep 17 00:00:00 2001
+
+From: Massimo Del Fedele <max@veneto.com>
+
+Subject: [PATCH] DIB Engine: Hook the engine between GDI32 and Display driver
+---
+ dlls/gdi32/driver.c |  139 +++++++++++++++++++++++++++++++++++++++++++++------
+ 1 files changed, 123 insertions(+), 16 deletions(-)
+
+diff --git a/dlls/gdi32/driver.c b/dlls/gdi32/driver.c
+index e6713ea..945bb77 100644
+--- a/dlls/gdi32/driver.c
++++ b/dlls/gdi32/driver.c
+@@ -3,6 +3,7 @@
+  *
+  * Copyright 1994 Bob Amstadt
+  * Copyright 1996, 2001 Alexandre Julliard
++ * Copyright 2009 Massimo Del Fedele
+  *
+  * This library is free software; you can redistribute it and/or
+  * modify it under the terms of the GNU Lesser General Public
+@@ -25,6 +26,7 @@
+ #include <stdarg.h>
+ #include <string.h>
+ #include <stdio.h>
++#include <stdlib.h>
+ #include "windef.h"
+ #include "winbase.h"
+ #include "winreg.h"
+@@ -214,6 +216,104 @@ static struct graphics_driver *create_driver( HMODULE module )
+ 
+ 
+ /**********************************************************************
++ *	     Load_Dib_Driver
++ *
++ * Check if we want the DIB engine and try to load it
++ */
++static HMODULE Load_Dib_Driver(void)
++{
++    HMODULE module;
++    
++    static const char *winedib_drv = "winedib.drv";
++    
++    /* we do want use DIB Engine ? */
++    BOOL driverRequired = TRUE;
++    
++    /* already checked env/registry for DIB driver ? */
++    BOOL envChecked     = FALSE;
++    
++    char *winedib;
++    char buffer[10];
++    
++    /* environment variable WINEDIB takes precedence */
++    if( (winedib = getenv("WINEDIB")) != NULL)
++    {
++        if(!strcasecmp(winedib, "ON") ||
++           !strcasecmp(winedib, "TRUE") ||
++           !strcasecmp(winedib, "ENABLE") ||
++           !strcasecmp(winedib, "ENABLED")
++        )
++        {
++            TRACE("DIB Engine enabled by environment\n");
++            envChecked = TRUE;
++            driverRequired = TRUE;
++        }
++        else if(!strcasecmp(winedib, "OFF") ||
++           !strcasecmp(winedib, "FALSE") ||
++           !strcasecmp(winedib, "DISABLE") ||
++           !strcasecmp(winedib, "DISABLED")
++        )
++        {
++            TRACE("DIB Engine disabled by environment\n");
++            envChecked = TRUE;
++            driverRequired = FALSE;
++        }
++        else
++            ERR("Bad WINEDIB environment variable\n");
++    }
++        
++    /* no WINEDIB environment var found or wrong value, we check registry */
++    if(!envChecked)
++    {
++        HKEY hkey;
++        buffer[0] = 0;
++        if (!RegOpenKeyA( HKEY_CURRENT_USER, "Software\\Wine\\DIB Engine", &hkey ))
++        {
++            DWORD type, count = sizeof(buffer);
++            RegQueryValueExA( hkey, "Enable", 0, &type, (LPBYTE) buffer, &count );
++            RegCloseKey( hkey );
++        }
++        if(*buffer)
++        {
++            /* registry value found, must be Y or y to enable driver, N or n to disable */
++            if(!strncasecmp(buffer, "Y", 1))
++            {
++                TRACE("DIB Engine enabled by registry\n");
++                envChecked = TRUE;
++                driverRequired = TRUE;
++            }
++            else if(!strncasecmp(buffer, "N", 1))
++            {
++                TRACE("DIB Engine disabled by registry\n");
++                envChecked = TRUE;
++                driverRequired = FALSE;
++            }
++        }
++    }
++        
++    /* none of above, we assume we don't want to use engine */
++    if(!envChecked)
++    {
++        TRACE("DIB Engine disabled by default\n");
++        envChecked = TRUE;
++        driverRequired = FALSE;
++    }
++    
++    /* if DIB Engine is required, try to load it
++     * otherwise just return NULL module */
++    if(driverRequired)
++    {
++        if( (module = LoadLibraryA( winedib_drv )) != 0)
++            TRACE("Succesfully loaded DIB Engine\n");
++        else
++            ERR("Couldn't load DIB Engine\n");
++        return module;
++    }
++    else
++        return 0;
++}
++
++/**********************************************************************
+  *	     DRIVER_get_display_driver
+  *
+  * Special case for loading the display driver: get the name from the config file
+@@ -226,25 +326,32 @@ const DC_FUNCTIONS *DRIVER_get_display_driver(void)
+     HKEY hkey;
+ 
+     if (display_driver) return &display_driver->funcs;  /* already loaded */
+-
+-    strcpy( buffer, "x11" );  /* default value */
+-    /* @@ Wine registry key: HKCU\Software\Wine\Drivers */
+-    if (!RegOpenKeyA( HKEY_CURRENT_USER, "Software\\Wine\\Drivers", &hkey ))
++    
++    /* check at first if DIB engine is present and if we want
++     * to use it */
++    if( (module = Load_Dib_Driver()) == 0)
+     {
+-        DWORD type, count = sizeof(buffer);
+-        RegQueryValueExA( hkey, "Graphics", 0, &type, (LPBYTE) buffer, &count );
+-        RegCloseKey( hkey );
+-    }
++        /* no DIB Engine loaded, just load normal display driver */
++        
++        strcpy( buffer, "x11" );  /* default value */
++        /* @@ Wine registry key: HKCU\Software\Wine\Drivers */
++        if (!RegOpenKeyA( HKEY_CURRENT_USER, "Software\\Wine\\Drivers", &hkey ))
++        {
++            DWORD type, count = sizeof(buffer);
++            RegQueryValueExA( hkey, "Graphics", 0, &type, (LPBYTE) buffer, &count );
++            RegCloseKey( hkey );
++        }
+ 
+-    name = buffer;
+-    while (name)
+-    {
+-        next = strchr( name, ',' );
+-        if (next) *next++ = 0;
++        name = buffer;
++        while (name)
++        {
++            next = strchr( name, ',' );
++            if (next) *next++ = 0;
+ 
+-        snprintf( libname, sizeof(libname), "wine%s.drv", name );
+-        if ((module = LoadLibraryA( libname )) != 0) break;
+-        name = next;
++            snprintf( libname, sizeof(libname), "wine%s.drv", name );
++            if ((module = LoadLibraryA( libname )) != 0) break;
++            name = next;
++        }
+     }
+ 
+     if (!(driver = create_driver( module )))

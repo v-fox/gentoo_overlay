@@ -1,0 +1,47 @@
+From 25e841ed2557bb725695289f9e49124ab9bf95ca Mon Sep 17 00:00:00 2001
+From: Jamey Sharp <jamey@minilop.net>
+Date: Sun, 23 Mar 2008 16:33:50 -0700
+Subject: [PATCH 2/2] Fix XAllocID race: hold the user display lock until we have a new XID.
+
+Xlib built --without-xcb is also vulnerable to this race, and a similar
+fix might work there too.
+
+Also, use an XID that's truly invalid while waiting for the next XID to be
+requested.
+---
+ src/xcb_io.c |   11 ++++++++++-
+ 1 files changed, 10 insertions(+), 1 deletions(-)
+
+diff --git a/src/xcb_io.c b/src/xcb_io.c
+index 030b69b..1af52b0 100644
+--- a/src/xcb_io.c
++++ b/src/xcb_io.c
+@@ -300,6 +300,10 @@ _XIDHandler(Display *dpy)
+ {
+ 	XID next = xcb_generate_id(dpy->xcb->connection);
+ 	LockDisplay(dpy);
++#ifdef XTHREADS
++	if (dpy->lock)
++		(*dpy->lock->user_unlock_display)(dpy);
++#endif
+ 	dpy->xcb->next_xid = next;
+ 	if(dpy->flags & XlibDisplayPrivSync)
+ 	{
+@@ -314,8 +318,13 @@ _XIDHandler(Display *dpy)
+ /* _XAllocID - resource ID allocation routine. */
+ XID _XAllocID(Display *dpy)
+ {
++	const XID inval = ~0UL;
+ 	XID ret = dpy->xcb->next_xid;
+-	dpy->xcb->next_xid = 0;
++#ifdef XTHREADS
++	if (ret != inval && dpy->lock)
++		(*dpy->lock->user_lock_display)(dpy);
++#endif
++	dpy->xcb->next_xid = inval;
+ 
+ 	if(!(dpy->flags & XlibDisplayPrivSync))
+ 	{
+-- 
+1.5.4.1
+

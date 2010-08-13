@@ -1,0 +1,1856 @@
+DIB Engine: Fork DDB-DIB behaviour
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/bitblt.c    |  116 ++++++++++++++++-
+ dlls/winedib.drv/bitmap.c    |   82 +++++++++++-
+ dlls/winedib.drv/clipping.c  |   14 ++
+ dlls/winedib.drv/dc.c        |   39 +++++-
+ dlls/winedib.drv/dib.c       |   42 +++++-
+ dlls/winedib.drv/dibdrv.h    |    9 +
+ dlls/winedib.drv/font.c      |   81 +++++++++++-
+ dlls/winedib.drv/graphics.c  |  284 ++++++++++++++++++++++++++++++++++++------
+ dlls/winedib.drv/opengl.c    |  227 +++++++++++++++++++++++++++++-----
+ dlls/winedib.drv/palette.c   |   91 ++++++++++++-
+ dlls/winedib.drv/pen_brush.c |   81 ++++++++++--
+ dlls/winedib.drv/text.c      |   44 +++++--
+ dlls/winedib.drv/video.c     |   32 ++++-
+ 13 files changed, 995 insertions(+), 147 deletions(-)
+
+diff --git a/dlls/winedib.drv/bitblt.c b/dlls/winedib.drv/bitblt.c
+index fa9e2ec..022f223 100644
+--- a/dlls/winedib.drv/bitblt.c
++++ b/dlls/winedib.drv/bitblt.c
+@@ -32,12 +32,43 @@ BOOL DIBDRV_AlphaBlend( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst, INT width
+                         DIBDRVPHYSDEV *physDevSrc, INT xSrc, INT ySrc, INT widthSrc, INT heightSrc,
+                         BLENDFUNCTION blendfn)
+ {
++    BOOL res;
++    
+     TRACE("physDevDst:%p, xDst:%d, yDst:%d, widthDst:%d, heightDst:%d, physDevSrc:%p, xSrc:%d, ySrc:%d, widthSrc:%d, heightSrc:%d\n",
+           physDevDst, xDst, yDst, widthDst, heightDst, physDevSrc, xSrc, ySrc, widthSrc, heightSrc);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pAlphaBlend(physDevDst->X11PhysDev, xDst, yDst, widthDst, heightDst,
++
++    if(physDevDst->hasDIB && physDevSrc->hasDIB)
++    {
++        /* DIB section selected in both source and dest DC, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res =  _DIBDRV_GetDisplayDriver()->pAlphaBlend(physDevDst->X11PhysDev, xDst, yDst, widthDst, heightDst,
++                                                   physDevSrc->X11PhysDev, xSrc, ySrc, widthSrc, heightSrc,
++                                                   blendfn);
++    }
++    else if(!physDevDst->hasDIB && !physDevSrc->hasDIB)
++    {
++        /* DDB selected in noth source and dest DC, use X11 driver */
++        res =  _DIBDRV_GetDisplayDriver()->pAlphaBlend(physDevDst->X11PhysDev, xDst, yDst, widthDst, heightDst,
++                                                       physDevSrc->X11PhysDev, xSrc, ySrc, widthSrc, heightSrc,
++                                                       blendfn);
++    }
++    else if(physDevSrc->hasDIB)
++    {
++        /* DIB on source, DDB on dest -- must convert source DIB to DDB and use X11 driver for blit */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res =  _DIBDRV_GetDisplayDriver()->pAlphaBlend(physDevDst->X11PhysDev, xDst, yDst, widthDst, heightDst,
++                                                   physDevSrc->X11PhysDev, xSrc, ySrc, widthSrc, heightSrc,
++                                                   blendfn);
++    }
++    else /* if(physDevDst->hasDIB) */
++    {
++        /* DDB on source, DIB on dest -- must convert source DDB to DIB and use the engine for blit */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res =  _DIBDRV_GetDisplayDriver()->pAlphaBlend(physDevDst->X11PhysDev, xDst, yDst, widthDst, heightDst,
+                                                    physDevSrc->X11PhysDev, xSrc, ySrc, widthSrc, heightSrc,
+                                                    blendfn);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -47,11 +78,39 @@ BOOL DIBDRV_BitBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                     INT width, INT height, DIBDRVPHYSDEV *physDevSrc,
+                     INT xSrc, INT ySrc, DWORD rop )
+ {
++    BOOL res;
++    
+     TRACE("physDevDst:%p, xDst:%d, yDst:%d, width:%d, height:%d, physDevSrc:%p, xSrc:%d, ySrc:%d, rop:%08x\n",
+           physDevDst, xDst, yDst, width, height, physDevSrc, xSrc, ySrc, rop);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pBitBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
++
++    if(physDevDst->hasDIB && physDevSrc->hasDIB)
++    {
++        /* DIB section selected in both source and dest DC, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pBitBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
+                                                       physDevSrc->X11PhysDev, xSrc, ySrc, rop);
++    }
++    else if(!physDevDst->hasDIB && !physDevSrc->hasDIB)
++    {
++        /* DDB selected in noth source and dest DC, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pBitBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
++                                                   physDevSrc->X11PhysDev, xSrc, ySrc, rop);
++    }
++    else if(physDevSrc->hasDIB)
++    {
++        /* DIB on source, DDB on dest -- must convert source DIB to DDB and use X11 driver for blit */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pBitBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
++                                                   physDevSrc->X11PhysDev, xSrc, ySrc, rop);
++    }
++    else /* if(physDevDst->hasDIB) */
++    {
++        /* DDB on source, DIB on dest -- must convert source DDB to DIB and use the engine for blit */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pBitBlt(physDevDst->X11PhysDev, xDst, yDst, width, height,
++                                                   physDevSrc->X11PhysDev, xSrc, ySrc, rop);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -62,11 +121,39 @@ BOOL DIBDRV_StretchBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                         DIBDRVPHYSDEV *physDevSrc, INT xSrc, INT ySrc,
+                         INT widthSrc, INT heightSrc, DWORD rop )
+ {
++    BOOL res;
++    
+     TRACE("physDevDst:%p, xDst:%d, yDst:%d, widthDst:%d, heightDst:%d, physDevSrc:%p, xSrc:%d, ySrc:%d, widthSrc:%d, heightSrc:%d, rop:%8x\n",
+           physDevDst, xDst, yDst, widthDst, heightDst, physDevSrc, xSrc, ySrc, widthSrc, heightSrc, rop);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pStretchBlt(physDevDst->X11PhysDev, xDst, yDst, widthSrc, heightSrc,
++
++    if(physDevDst->hasDIB && physDevSrc->hasDIB)
++    {
++        /* DIB section selected in both source and dest DC, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res =  _DIBDRV_GetDisplayDriver()->pStretchBlt(physDevDst->X11PhysDev, xDst, yDst, widthSrc, heightSrc,
++                                                          physDevSrc->X11PhysDev, xSrc, ySrc, widthDst, heightDst, rop);
++    }
++    else if(!physDevDst->hasDIB && !physDevSrc->hasDIB)
++    {
++        /* DDB selected in noth source and dest DC, use X11 driver */
++        res =  _DIBDRV_GetDisplayDriver()->pStretchBlt(physDevDst->X11PhysDev, xDst, yDst, widthSrc, heightSrc,
++                                                       physDevSrc->X11PhysDev, xSrc, ySrc, widthDst, heightDst, rop);
++    }
++    else if(physDevSrc->hasDIB)
++    {
++        /* DIB on source, DDB on dest -- must convert source DIB to DDB and use X11 driver for blit */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res =  _DIBDRV_GetDisplayDriver()->pStretchBlt(physDevDst->X11PhysDev, xDst, yDst, widthSrc, heightSrc,
+                                                           physDevSrc->X11PhysDev, xSrc, ySrc, widthDst, heightDst, rop);
++    }
++    else /* if(physDevDst->hasDIB) */
++    {
++        /* DDB on source, DIB on dest -- must convert source DDB to DIB and use the engine for blit */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res =  _DIBDRV_GetDisplayDriver()->pStretchBlt(physDevDst->X11PhysDev, xDst, yDst, widthSrc, heightSrc,
++                                                          physDevSrc->X11PhysDev, xSrc, ySrc, widthDst, heightDst, rop);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -74,7 +161,20 @@ BOOL DIBDRV_StretchBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+  */
+ BOOL DIBDRV_PatBlt( DIBDRVPHYSDEV *physDev, INT left, INT top, INT width, INT height, DWORD rop )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, left:%d, top:%d, width:%d, height:%d, rop:%06x\n", physDev, left, top, width, height, rop);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pPatBlt(physDev->X11PhysDev, left, top, width, height, rop);
++
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pPatBlt(physDev->X11PhysDev, left, top, width, height, rop);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pPatBlt(physDev->X11PhysDev, left, top, width, height, rop);
++    }
++    return res;
+ }
+diff --git a/dlls/winedib.drv/bitmap.c b/dlls/winedib.drv/bitmap.c
+index 09cca69..df7c03a 100644
+--- a/dlls/winedib.drv/bitmap.c
++++ b/dlls/winedib.drv/bitmap.c
+@@ -31,9 +31,31 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+  */
+ HBITMAP DIBDRV_SelectBitmap( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap )
+ {
++    DIBSECTION dibSection;
++    HBITMAP res;
++    
+     TRACE("physDev:%p, hbitmap:%p\n", physDev, hbitmap);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSelectBitmap(physDev->X11PhysDev, hbitmap);
++
++    /* try to get the DIBSECTION data from the bitmap */
++    if(GetObjectW(hbitmap, sizeof(DIBSECTION), &dibSection) == sizeof(BITMAP))
++    {
++        /* not a DIB section, sets it on physDev and use X11 behaviour */
++        physDev->hasDIB = FALSE;
++        res = _DIBDRV_GetDisplayDriver()->pSelectBitmap(physDev->X11PhysDev, hbitmap);
++        if(res)
++            physDev->hbitmap = hbitmap;
++    }
++    else
++    {
++        /* it's a DIB section, sets it on physDev and use DIB Engine behaviour */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        physDev->hasDIB = TRUE;
++        res = _DIBDRV_GetDisplayDriver()->pSelectBitmap(physDev->X11PhysDev, hbitmap);
++        if(res)
++            physDev->hbitmap = hbitmap;
++    }
++    return res;
++    
+ }
+ 
+ /****************************************************************************
+@@ -41,9 +63,24 @@ HBITMAP DIBDRV_SelectBitmap( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap )
+  */
+ BOOL DIBDRV_CreateBitmap( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap, LPVOID bmBits )
+ {
++    DIBSECTION dibSection;
++    BOOL res;
++    
+     TRACE("physDev:%p, hbitmap:%p, bmBits:%p\n", physDev, hbitmap, bmBits);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pCreateBitmap(physDev->X11PhysDev, hbitmap, bmBits);
++
++    /* try to get the DIBSECTION data from the bitmap */
++    if(GetObjectW(hbitmap, sizeof(DIBSECTION), &dibSection) == sizeof(BITMAP))
++    {
++        /* not a DIB section, use X11 behaviour */
++        res = _DIBDRV_GetDisplayDriver()->pCreateBitmap(physDev->X11PhysDev, hbitmap, bmBits);
++    }
++    else
++    {
++        /* it's a DIB section, use DIB Engine behaviour */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pCreateBitmap(physDev->X11PhysDev, hbitmap, bmBits);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -51,9 +88,24 @@ BOOL DIBDRV_CreateBitmap( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap, LPVOID bmBits
+  */
+ BOOL DIBDRV_DeleteBitmap( HBITMAP hbitmap )
+ {
++    DIBSECTION dibSection;
++    BOOL res;
++    
+     TRACE("hbitmap:%p\n", hbitmap);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pDeleteBitmap(hbitmap);
++
++    /* try to get the DIBSECTION data from the bitmap */
++    if(GetObjectW(hbitmap, sizeof(DIBSECTION), &dibSection) == sizeof(BITMAP))
++    {
++        /* not a DIB section, use X11 behaviour */
++        res = _DIBDRV_GetDisplayDriver()->pDeleteBitmap(hbitmap);
++    }
++    else
++    {
++        /* it's a DIB section, use DIB Engine behaviour */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pDeleteBitmap(hbitmap);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -61,9 +113,14 @@ BOOL DIBDRV_DeleteBitmap( HBITMAP hbitmap )
+  */
+ LONG DIBDRV_GetBitmapBits( HBITMAP hbitmap, void *buffer, LONG count )
+ {
++    LONG res;
++    
+     TRACE("hbitmap:%p, buffer:%p, count:%d\n", hbitmap, buffer, count);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetBitmapBits(hbitmap, buffer, count);
++
++    /* GetBitmapBits is only valid for DDBs, so use X11 driver */
++    res =  _DIBDRV_GetDisplayDriver()->pGetBitmapBits(hbitmap, buffer, count);
++    
++    return res;
+ }
+ 
+ /******************************************************************************
+@@ -71,7 +128,12 @@ LONG DIBDRV_GetBitmapBits( HBITMAP hbitmap, void *buffer, LONG count )
+  */
+ LONG DIBDRV_SetBitmapBits( HBITMAP hbitmap, const void *bits, LONG count )
+ {
++    LONG res;
++    
+     TRACE("hbitmap:%p, bits:%p, count:%d\n", hbitmap, bits, count);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetBitmapBits(hbitmap, bits, count);
++
++    /* SetBitmapBits is only valid for DDBs, so use X11 driver */
++    res = _DIBDRV_GetDisplayDriver()->pSetBitmapBits(hbitmap, bits, count);
++
++    return res;
+ }
+diff --git a/dlls/winedib.drv/clipping.c b/dlls/winedib.drv/clipping.c
+index b3c18ef..1ddbb1b 100644
+--- a/dlls/winedib.drv/clipping.c
++++ b/dlls/winedib.drv/clipping.c
+@@ -31,6 +31,16 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+ void DIBDRV_SetDeviceClipping( DIBDRVPHYSDEV *physDev, HRGN vis_rgn, HRGN clip_rgn )
+ {
+     TRACE("physDev:%p, vis_rgn:%p, clip_rgn:%p\n", physDev, vis_rgn, clip_rgn);
+-    ONCE(FIXME("stub\n"));
+-    _DIBDRV_GetDisplayDriver()->pSetDeviceClipping(physDev->X11PhysDev, vis_rgn, clip_rgn);
++
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        _DIBDRV_GetDisplayDriver()->pSetDeviceClipping(physDev->X11PhysDev, vis_rgn, clip_rgn);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        _DIBDRV_GetDisplayDriver()->pSetDeviceClipping(physDev->X11PhysDev, vis_rgn, clip_rgn);
++    }
+ }
+diff --git a/dlls/winedib.drv/dc.c b/dlls/winedib.drv/dc.c
+index e0ffb4d..c8e3b91 100644
+--- a/dlls/winedib.drv/dc.c
++++ b/dlls/winedib.drv/dc.c
+@@ -52,10 +52,15 @@ BOOL DIBDRV_CreateDC( HDC hdc, DIBDRVPHYSDEV **pdev, LPCWSTR driver, LPCWSTR dev
+     /* sets X11 Device pointer in DIB Engine device */
+     physDev->X11PhysDev = X11PhysDev;
+     
++    /* stock bitmap selected on DC creation */
++    physDev->hbitmap = GetStockObject(DEFAULT_BITMAP);
++    
++    /* no DIB selected into DC on creation */
++    physDev->hasDIB = FALSE;
++    
+     /* sets the result value and returns */
+     *pdev = physDev;
+ 
+-    ONCE(FIXME("stub\n"));
+     return TRUE;
+ }
+ 
+@@ -85,11 +90,23 @@ BOOL DIBDRV_DeleteDC( DIBDRVPHYSDEV *physDev )
+ INT DIBDRV_ExtEscape( DIBDRVPHYSDEV *physDev, INT escape, INT in_count, LPCVOID in_data,
+                       INT out_count, LPVOID out_data )
+ {
++    INT res;
++    
+     TRACE("physDev:%p, escape:%d, in_count:%d, in_data:%p, out_count:%d, out_data:%p\n",
+           physDev, escape, in_count, in_data, out_count, out_data);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pExtEscape(physDev->X11PhysDev, escape, in_count, in_data, out_count, out_data);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pExtEscape(physDev->X11PhysDev, escape, in_count, in_data, out_count, out_data);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pExtEscape(physDev->X11PhysDev, escape, in_count, in_data, out_count, out_data);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -97,8 +114,20 @@ INT DIBDRV_ExtEscape( DIBDRVPHYSDEV *physDev, INT escape, INT in_count, LPCVOID
+  */
+ INT DIBDRV_GetDeviceCaps( DIBDRVPHYSDEV *physDev, INT cap )
+ {
++    INT res;
++    
+     TRACE("physDev:%p, cap:%d\n", physDev, cap); 
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetDeviceCaps(physDev->X11PhysDev, cap);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetDeviceCaps(physDev->X11PhysDev, cap);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetDeviceCaps(physDev->X11PhysDev, cap);
++    }
++    return res;
+ }
+diff --git a/dlls/winedib.drv/dib.c b/dlls/winedib.drv/dib.c
+index 47dce0e..28330fa 100644
+--- a/dlls/winedib.drv/dib.c
++++ b/dlls/winedib.drv/dib.c
+@@ -31,10 +31,15 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+ HBITMAP DIBDRV_CreateDIBSection( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap,
+                                  const BITMAPINFO *bmi, UINT usage )
+ {
++    HBITMAP res;
++    
+     TRACE("physDev:%p, hbitmap:%p, bmi:%p, usage:%d\n", physDev, hbitmap, bmi, usage);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pCreateDIBSection(physDev->X11PhysDev, hbitmap, bmi, usage);
++    /* createDIBSection is only DIB-related, so we just use the engine */
++    ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++    res = _DIBDRV_GetDisplayDriver()->pCreateDIBSection(physDev->X11PhysDev, hbitmap, bmi, usage);
++
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -43,11 +48,15 @@ HBITMAP DIBDRV_CreateDIBSection( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap,
+ INT DIBDRV_GetDIBits( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap, UINT startscan,
+                       UINT lines, LPCVOID bits, const BITMAPINFO *bmi, UINT coloruse )
+ {
++    INT res;
++    
+     TRACE("physDev:%p, hbitmap:%p, startscan:%d, lines:%d, bits:%p, bmi:%p, coloruse:%d\n",
+         physDev, hbitmap, startscan, lines, bits, bmi, coloruse);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetDIBits(physDev->X11PhysDev, hbitmap, startscan, lines, bits, bmi, coloruse);
++    /* GetDIBits reads bits from a DDB, so we should use the X11 driver */
++    res = _DIBDRV_GetDisplayDriver()->pGetDIBits(physDev->X11PhysDev, hbitmap, startscan, lines, bits, bmi, coloruse);
++    
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -56,10 +65,15 @@ INT DIBDRV_GetDIBits( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap, UINT startscan,
+ UINT DIBDRV_SetDIBColorTable( DIBDRVPHYSDEV *physDev, UINT start, UINT count,
+                               const RGBQUAD *colors )
+ {
++    UINT res;
++    
+     TRACE("physDev:%p, start:%d, count:%d, colors:%p\n", physDev, start, count, colors);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetDIBColorTable(physDev->X11PhysDev, start, count, colors);
++    /* SetDIBColorTable operates on a DIB, so we use the engine */
++    ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++    res = _DIBDRV_GetDisplayDriver()->pSetDIBColorTable(physDev->X11PhysDev, start, count, colors);
++
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -68,11 +82,15 @@ UINT DIBDRV_SetDIBColorTable( DIBDRVPHYSDEV *physDev, UINT start, UINT count,
+ INT DIBDRV_SetDIBits( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap, UINT startscan,
+                       UINT lines, LPCVOID bits, const BITMAPINFO *info, UINT coloruse )
+ {
++    INT res;
++    
+     TRACE("physDev:%p, hbitmap:%p, startscan:%d, lines:%d, bits:%p, bmi:%p, coloruse:%d\n",
+         physDev, hbitmap, startscan, lines, bits, info, coloruse);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetDIBits(physDev->X11PhysDev, hbitmap, startscan, lines, bits, info, coloruse);
++    /* SetDIBits writes bits to a DDB, so we should use the X11 driver */
++    res =  _DIBDRV_GetDisplayDriver()->pSetDIBits(physDev->X11PhysDev, hbitmap, startscan, lines, bits, info, coloruse);
++
++    return res;
+ }
+ 
+ /*************************************************************************
+@@ -83,10 +101,14 @@ INT DIBDRV_SetDIBitsToDevice( DIBDRVPHYSDEV *physDev, INT xDest, INT yDest, DWOR
+                               UINT startscan, UINT lines, LPCVOID bits,
+                               const BITMAPINFO *info, UINT coloruse )
+ {
++    INT res;
++    
+     TRACE("physDev:%p, xDest:%d, yDest:%d, cx:%x, cy:%x, xSrc:%d, ySrc:%d, startscan:%d, lines:%d, bits:%p, info:%p, coloruse:%d\n",
+         physDev, xDest, yDest, cx, cy, xSrc, ySrc, startscan, lines, bits, info, coloruse);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetDIBitsToDevice(physDev->X11PhysDev, xDest, yDest, cx, cy, xSrc, ySrc,
++    /* SetDIBitsToDevice operates on a physical device, so we should use the X11 driver */
++    res = _DIBDRV_GetDisplayDriver()->pSetDIBitsToDevice(physDev->X11PhysDev, xDest, yDest, cx, cy, xSrc, ySrc,
+                                                           startscan, lines, bits, info, coloruse);
++
++    return res;
+ }
+diff --git a/dlls/winedib.drv/dibdrv.h b/dlls/winedib.drv/dibdrv.h
+index 6dfba06..8a2e139 100644
+--- a/dlls/winedib.drv/dibdrv.h
++++ b/dlls/winedib.drv/dibdrv.h
+@@ -52,6 +52,9 @@
+     } \
+ }
+ 
++/* extra stock object: default 1x1 bitmap for memory DCs
++   grabbed from gdi_private.h */
++#define DEFAULT_BITMAP (STOCK_LAST+1)
+ 
+ /* DIB driver physical device */
+ typedef struct _DIBDRVPHYSDEV
+@@ -59,6 +62,12 @@ typedef struct _DIBDRVPHYSDEV
+     /* X11 driver physical device */
+     PHYSDEV X11PhysDev;
+     
++    /* is a DIB selected into DC ? */
++    BOOL hasDIB;
++    
++    /* currently selected HBITMAP */
++    HBITMAP hbitmap;
++
+     /* active ROP2 */
+     INT rop2;
+ 
+diff --git a/dlls/winedib.drv/font.c b/dlls/winedib.drv/font.c
+index 85f9198..675145f 100644
+--- a/dlls/winedib.drv/font.c
++++ b/dlls/winedib.drv/font.c
+@@ -31,10 +31,22 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+  */
+ COLORREF DIBDRV_SetTextColor( DIBDRVPHYSDEV *physDev, COLORREF color )
+ {
++    COLORREF res;
++    
+     TRACE("physDev:%p, color:%08x\n", physDev, color);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetTextColor(physDev->X11PhysDev, color);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSetTextColor(physDev->X11PhysDev, color);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSetTextColor(physDev->X11PhysDev, color);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -42,10 +54,22 @@ COLORREF DIBDRV_SetTextColor( DIBDRVPHYSDEV *physDev, COLORREF color )
+  */
+ HFONT DIBDRV_SelectFont( DIBDRVPHYSDEV *physDev, HFONT hfont, HANDLE gdiFont )
+ {
++    HFONT res;
++    
+     TRACE("physDev:%p, hfont:%p, gdiFont:%p\n", physDev, hfont, gdiFont);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSelectFont(physDev->X11PhysDev, hfont, gdiFont);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSelectFont(physDev->X11PhysDev, hfont, gdiFont);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSelectFont(physDev->X11PhysDev, hfont, gdiFont);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -54,10 +78,22 @@ HFONT DIBDRV_SelectFont( DIBDRVPHYSDEV *physDev, HFONT hfont, HANDLE gdiFont )
+ BOOL DIBDRV_EnumDeviceFonts( DIBDRVPHYSDEV *physDev, LPLOGFONTW plf,
+                              FONTENUMPROCW proc, LPARAM lp )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, plf:%p, proc:%p, lp:%lx\n", physDev, plf, proc, lp);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pEnumDeviceFonts(physDev->X11PhysDev, plf, proc, lp);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pEnumDeviceFonts(physDev->X11PhysDev, plf, proc, lp);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pEnumDeviceFonts(physDev->X11PhysDev, plf, proc, lp);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -65,9 +101,22 @@ BOOL DIBDRV_EnumDeviceFonts( DIBDRVPHYSDEV *physDev, LPLOGFONTW plf,
+  */
+ BOOL DIBDRV_GetTextMetrics( DIBDRVPHYSDEV *physDev, TEXTMETRICW *metrics )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, metrics:%p\n", physDev, metrics);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetTextMetrics(physDev->X11PhysDev, metrics);
++
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetTextMetrics(physDev->X11PhysDev, metrics);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetTextMetrics(physDev->X11PhysDev, metrics);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -76,8 +125,20 @@ BOOL DIBDRV_GetTextMetrics( DIBDRVPHYSDEV *physDev, TEXTMETRICW *metrics )
+ BOOL DIBDRV_GetCharWidth( DIBDRVPHYSDEV *physDev, UINT firstChar, UINT lastChar,
+                           LPINT buffer )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, firstChar:%d, lastChar:%d, buffer:%pn", physDev, firstChar, lastChar, buffer);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetCharWidth(physDev->X11PhysDev, firstChar, lastChar, buffer);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetCharWidth(physDev->X11PhysDev, firstChar, lastChar, buffer);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetCharWidth(physDev->X11PhysDev, firstChar, lastChar, buffer);
++    }
++    return res;
+ }
+diff --git a/dlls/winedib.drv/graphics.c b/dlls/winedib.drv/graphics.c
+index b746af2..b74c08e 100644
+--- a/dlls/winedib.drv/graphics.c
++++ b/dlls/winedib.drv/graphics.c
+@@ -31,12 +31,25 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+ BOOL DIBDRV_Arc( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT bottom,
+             INT xstart, INT ystart, INT xend, INT yend )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, left:%d, top:%d, right:%d, bottom:%d, xstart:%d, ystart:%d, xend:%d, yend:%d\n",
+           physDev, left, top, right, bottom, xstart, ystart, xend, yend);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pArc(physDev->X11PhysDev, left, top, right, bottom,
+-                                            xstart, ystart, xend, yend);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pArc(physDev->X11PhysDev, left, top, right, bottom,
++                                               xstart, ystart, xend, yend);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pArc(physDev->X11PhysDev, left, top, right, bottom,
++                                               xstart, ystart, xend, yend);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -45,12 +58,25 @@ BOOL DIBDRV_Arc( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT botto
+ BOOL DIBDRV_Chord( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT bottom,
+               INT xstart, INT ystart, INT xend, INT yend )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, left:%d, top:%d, right:%d, bottom:%d, xstart:%d, ystart:%d, xend:%d, yend:%d\n",
+           physDev, left, top, right, bottom, xstart, ystart, xend, yend);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pChord(physDev->X11PhysDev, left, top, right, bottom,
+-                                              xstart, ystart, xend, yend);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pChord(physDev->X11PhysDev, left, top, right, bottom,
++                                                 xstart, ystart, xend, yend);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pChord(physDev->X11PhysDev, left, top, right, bottom,
++                                                 xstart, ystart, xend, yend);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -58,11 +84,23 @@ BOOL DIBDRV_Chord( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT bot
+  */
+ BOOL DIBDRV_Ellipse( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT bottom )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, left:%d, top:%d, right:%d, bottom:%d\n",
+           physDev, left, top, right, bottom);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pEllipse(physDev->X11PhysDev, left, top, right, bottom);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pEllipse(physDev->X11PhysDev, left, top, right, bottom);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pEllipse(physDev->X11PhysDev, left, top, right, bottom);
++    }
++    return res;
+ }
+ 
+ /**********************************************************************
+@@ -71,11 +109,23 @@ BOOL DIBDRV_Ellipse( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT b
+ BOOL DIBDRV_ExtFloodFill( DIBDRVPHYSDEV *physDev, INT x, INT y, COLORREF color,
+                      UINT fillType )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, x:%d, y:%d, color:%x, fillType:%d\n",
+           physDev, x, y, color, fillType);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pExtFloodFill(physDev->X11PhysDev, x, y, color, fillType);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pExtFloodFill(physDev->X11PhysDev, x, y, color, fillType);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pExtFloodFill(physDev->X11PhysDev, x, y, color, fillType);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -83,10 +133,22 @@ BOOL DIBDRV_ExtFloodFill( DIBDRVPHYSDEV *physDev, INT x, INT y, COLORREF color,
+  */
+ BOOL DIBDRV_GetDCOrgEx( DIBDRVPHYSDEV *physDev, LPPOINT lpp )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, lpp:%p\n", physDev, lpp);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetDCOrgEx(physDev->X11PhysDev, lpp);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetDCOrgEx(physDev->X11PhysDev, lpp);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetDCOrgEx(physDev->X11PhysDev, lpp);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -94,10 +156,22 @@ BOOL DIBDRV_GetDCOrgEx( DIBDRVPHYSDEV *physDev, LPPOINT lpp )
+  */
+ COLORREF DIBDRV_GetPixel( DIBDRVPHYSDEV *physDev, INT x, INT y )
+ {
++    COLORREF res;
++    
+     TRACE("physDev:%p, x:%d, y:%d\n", physDev, x, y);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetPixel(physDev->X11PhysDev, x, y);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetPixel(physDev->X11PhysDev, x, y);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetPixel(physDev->X11PhysDev, x, y);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -105,10 +179,22 @@ COLORREF DIBDRV_GetPixel( DIBDRVPHYSDEV *physDev, INT x, INT y )
+  */
+ BOOL DIBDRV_LineTo( DIBDRVPHYSDEV *physDev, INT x, INT y )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, x:%d, y:%d\n", physDev, x, y);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pLineTo(physDev->X11PhysDev, x, y);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pLineTo(physDev->X11PhysDev, x, y);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pLineTo(physDev->X11PhysDev, x, y);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -116,10 +202,22 @@ BOOL DIBDRV_LineTo( DIBDRVPHYSDEV *physDev, INT x, INT y )
+  */
+ BOOL DIBDRV_PaintRgn( DIBDRVPHYSDEV *physDev, HRGN hrgn )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, hrgn:%p\n", physDev, hrgn);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pPaintRgn(physDev->X11PhysDev, hrgn);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pPaintRgn(physDev->X11PhysDev, hrgn);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pPaintRgn(physDev->X11PhysDev, hrgn);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -128,12 +226,25 @@ BOOL DIBDRV_PaintRgn( DIBDRVPHYSDEV *physDev, HRGN hrgn )
+ BOOL DIBDRV_Pie( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT bottom,
+             INT xstart, INT ystart, INT xend, INT yend )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, left:%d, top:%d, right:%d, bottom:%d, xstart:%d, ystart:%d, xend:%d, yend:%d\n",
+           physDev, left, top, right, bottom, xstart, ystart, xend, yend);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pPie(physDev->X11PhysDev, left, top, right, bottom,
+-                                            xstart, ystart, xend, yend);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pPie(physDev->X11PhysDev, left, top, right, bottom,
++                                               xstart, ystart, xend, yend);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pPie(physDev->X11PhysDev, left, top, right, bottom,
++                                               xstart, ystart, xend, yend);
++    }
++    return res;
+ }
+ 
+ /**********************************************************************
+@@ -141,10 +252,22 @@ BOOL DIBDRV_Pie( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT botto
+  */
+ BOOL DIBDRV_Polygon( DIBDRVPHYSDEV *physDev, const POINT* pt, INT count )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, pt:%p, count:%d\n", physDev, pt, count);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pPolygon(physDev->X11PhysDev, pt, count);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pPolygon(physDev->X11PhysDev, pt, count);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pPolygon(physDev->X11PhysDev, pt, count);
++    }
++    return res;
+ }
+ 
+ /**********************************************************************
+@@ -152,10 +275,22 @@ BOOL DIBDRV_Polygon( DIBDRVPHYSDEV *physDev, const POINT* pt, INT count )
+  */
+ BOOL DIBDRV_Polyline( DIBDRVPHYSDEV *physDev, const POINT* pt, INT count )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, pt:%p, count:%d\n", physDev, pt, count);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pPolyline(physDev->X11PhysDev, pt, count);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pPolyline(physDev->X11PhysDev, pt, count);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pPolyline(physDev->X11PhysDev, pt, count);
++    }
++    return res;
+ }
+ 
+ /**********************************************************************
+@@ -163,10 +298,22 @@ BOOL DIBDRV_Polyline( DIBDRVPHYSDEV *physDev, const POINT* pt, INT count )
+  */
+ BOOL DIBDRV_PolyPolygon( DIBDRVPHYSDEV *physDev, const POINT* pt, const INT* counts, UINT polygons)
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, pt:%p, counts:%p, polygons:%d\n", physDev, pt, counts, polygons);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pPolyPolygon(physDev->X11PhysDev, pt, counts, polygons);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pPolyPolygon(physDev->X11PhysDev, pt, counts, polygons);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pPolyPolygon(physDev->X11PhysDev, pt, counts, polygons);
++    }
++    return res;
+ }
+ 
+ /**********************************************************************
+@@ -175,10 +322,22 @@ BOOL DIBDRV_PolyPolygon( DIBDRVPHYSDEV *physDev, const POINT* pt, const INT* cou
+ BOOL DIBDRV_PolyPolyline( DIBDRVPHYSDEV *physDev, const POINT* pt, const DWORD* counts,
+                      DWORD polylines )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, pt:%p, counts:%p, polylines:%d\n", physDev, pt, counts, polylines);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pPolyPolyline(physDev->X11PhysDev, pt, counts, polylines);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pPolyPolyline(physDev->X11PhysDev, pt, counts, polylines);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pPolyPolyline(physDev->X11PhysDev, pt, counts, polylines);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -186,11 +345,23 @@ BOOL DIBDRV_PolyPolyline( DIBDRVPHYSDEV *physDev, const POINT* pt, const DWORD*
+  */
+ BOOL DIBDRV_Rectangle( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT bottom)
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, left:%d, top:%d, right:%d, bottom:%d\n",
+           physDev, left, top, right, bottom);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pRectangle(physDev->X11PhysDev, left, top, right, bottom);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pRectangle(physDev->X11PhysDev, left, top, right, bottom);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pRectangle(physDev->X11PhysDev, left, top, right, bottom);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -199,12 +370,25 @@ BOOL DIBDRV_Rectangle( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right, INT
+ BOOL DIBDRV_RoundRect( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right,
+                   INT bottom, INT ell_width, INT ell_height )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, left:%d, top:%d, right:%d, bottom:%d, ell_width:%d, ell_height:%d\n",
+           physDev, left, top, right, bottom, ell_width, ell_height);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pRoundRect(physDev->X11PhysDev, left, top, right, bottom,
+-                                                  ell_width, ell_height);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pRoundRect(physDev->X11PhysDev, left, top, right, bottom,
++                                                     ell_width, ell_height);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pRoundRect(physDev->X11PhysDev, left, top, right, bottom,
++                                                     ell_width, ell_height);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -212,10 +396,22 @@ BOOL DIBDRV_RoundRect( DIBDRVPHYSDEV *physDev, INT left, INT top, INT right,
+  */
+ COLORREF DIBDRV_SetPixel( DIBDRVPHYSDEV *physDev, INT x, INT y, COLORREF color )
+ {
++    COLORREF res;
++    
+     TRACE("physDev:%p, x:%d, y:%d, color:%x\n", physDev, x, y, color);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetPixel(physDev->X11PhysDev, x, y, color);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSetPixel(physDev->X11PhysDev, x, y, color);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSetPixel(physDev->X11PhysDev, x, y, color);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -223,8 +419,20 @@ COLORREF DIBDRV_SetPixel( DIBDRVPHYSDEV *physDev, INT x, INT y, COLORREF color )
+  */
+ DWORD DIBDRV_SetDCOrg( DIBDRVPHYSDEV *physDev, INT x, INT y )
+ {
++    DWORD res;
++    
+     TRACE("physDev:%p, x:%d, y:%d\n", physDev, x, y);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetDCOrg(physDev->X11PhysDev, x, y);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSetDCOrg(physDev->X11PhysDev, x, y);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSetDCOrg(physDev->X11PhysDev, x, y);
++    }
++    return res;
+ }
+diff --git a/dlls/winedib.drv/opengl.c b/dlls/winedib.drv/opengl.c
+index 27e4229..e8ec96c 100644
+--- a/dlls/winedib.drv/opengl.c
++++ b/dlls/winedib.drv/opengl.c
+@@ -30,10 +30,22 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+ int DIBDRV_ChoosePixelFormat( DIBDRVPHYSDEV *physDev,
+                               const PIXELFORMATDESCRIPTOR *ppfd )
+ {
++    int res;
++    
+     TRACE("physDev:%p, ppfd:%p\n", physDev, ppfd);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pChoosePixelFormat(physDev->X11PhysDev, ppfd);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pChoosePixelFormat(physDev->X11PhysDev, ppfd);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pChoosePixelFormat(physDev->X11PhysDev, ppfd);
++    }
++    return res;
+ }
+ 
+ int DIBDRV_DescribePixelFormat( DIBDRVPHYSDEV *physDev,
+@@ -41,36 +53,84 @@ int DIBDRV_DescribePixelFormat( DIBDRVPHYSDEV *physDev,
+                                 UINT nBytes,
+                                 PIXELFORMATDESCRIPTOR *ppfd )
+ {
++    int res;
++    
+     TRACE("physDev:%p, iPixelFormat:%d, nBytes:%d, ppfd:%p\n", physDev, iPixelFormat, nBytes, ppfd);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pDescribePixelFormat(physDev->X11PhysDev, iPixelFormat, nBytes, ppfd);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pDescribePixelFormat(physDev->X11PhysDev, iPixelFormat, nBytes, ppfd);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pDescribePixelFormat(physDev->X11PhysDev, iPixelFormat, nBytes, ppfd);
++    }
++    return res;
+ }
+ 
+ int DIBDRV_GetPixelFormat( DIBDRVPHYSDEV *physDev)
+ {
++    int res;
++    
+     TRACE("physDev:%p\n", physDev);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetPixelFormat(physDev->X11PhysDev);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetPixelFormat(physDev->X11PhysDev);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetPixelFormat(physDev->X11PhysDev);
++    }
++    return res;
+ }
+ 
+ BOOL DIBDRV_SetPixelFormat( DIBDRVPHYSDEV *physDev,
+                             int iPixelFormat,
+                             const PIXELFORMATDESCRIPTOR *ppfd )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, iPixelFormat:%d, ppfd:%p\n", physDev, iPixelFormat, ppfd);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetPixelFormat(physDev->X11PhysDev, iPixelFormat, ppfd);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSetPixelFormat(physDev->X11PhysDev, iPixelFormat, ppfd);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSetPixelFormat(physDev->X11PhysDev, iPixelFormat, ppfd);
++    }
++    return res;
+ }
+ 
+ BOOL DIBDRV_SwapBuffers( DIBDRVPHYSDEV *physDev )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p\n", physDev);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSwapBuffers(physDev->X11PhysDev);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSwapBuffers(physDev->X11PhysDev);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSwapBuffers(physDev->X11PhysDev);
++    }
++    return res;
+ }
+ 
+ /**
+@@ -80,10 +140,14 @@ BOOL DIBDRV_SwapBuffers( DIBDRVPHYSDEV *physDev )
+  */
+ BOOL CDECL DIBDRV_wglCopyContext(HGLRC hglrcSrc, HGLRC hglrcDst, UINT mask)
+ {
++    BOOL res;
++    
+     TRACE("hglrcSrc:%p, hglrcDst:%p, mask:%x\n", hglrcSrc, hglrcDst, mask);
+ 
+     ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglCopyContext(hglrcSrc, hglrcDst, mask);
++    res = _DIBDRV_GetDisplayDriver()->pwglCopyContext(hglrcSrc, hglrcDst, mask);
++
++    return res;
+ }
+ 
+ /**
+@@ -93,10 +157,22 @@ BOOL CDECL DIBDRV_wglCopyContext(HGLRC hglrcSrc, HGLRC hglrcDst, UINT mask)
+  */
+ HGLRC CDECL DIBDRV_wglCreateContext(DIBDRVPHYSDEV *physDev)
+ {
++    HGLRC res;
++    
+     TRACE("physDev:%p\n", physDev);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglCreateContext(physDev->X11PhysDev);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pwglCreateContext(physDev->X11PhysDev);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pwglCreateContext(physDev->X11PhysDev);
++    }
++    return res;
+ }
+ 
+ /**
+@@ -106,10 +182,13 @@ HGLRC CDECL DIBDRV_wglCreateContext(DIBDRVPHYSDEV *physDev)
+  */
+ BOOL CDECL DIBDRV_wglDeleteContext(HGLRC hglrc)
+ {
++    BOOL res;
++    
+     TRACE("hglrc:%p\n", hglrc);
+ 
+     ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglDeleteContext(hglrc);
++    res = _DIBDRV_GetDisplayDriver()->pwglDeleteContext(hglrc);
++    return res;
+ }
+ 
+ /**
+@@ -119,10 +198,14 @@ BOOL CDECL DIBDRV_wglDeleteContext(HGLRC hglrc)
+  */
+ PROC CDECL DIBDRV_wglGetProcAddress(LPCSTR lpszProc)
+ {
++    PROC res;
++    
+     TRACE("lpszProc:%p\n", lpszProc);
+ 
+     ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglGetProcAddress(lpszProc);
++    res = _DIBDRV_GetDisplayDriver()->pwglGetProcAddress(lpszProc);
++
++    return res;
+ }
+ 
+ /**
+@@ -135,10 +218,22 @@ PROC CDECL DIBDRV_wglGetProcAddress(LPCSTR lpszProc)
+  */
+ HDC CDECL DIBDRV_wglGetPbufferDCARB(DIBDRVPHYSDEV *physDev, HPBUFFERARB hPbuffer)
+ {
++    HDC res;
++    
+     TRACE("physDev:%p, hPbuffer:%p\n", physDev, hPbuffer);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglGetPbufferDCARB(physDev->X11PhysDev, hPbuffer);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pwglGetPbufferDCARB(physDev->X11PhysDev, hPbuffer);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pwglGetPbufferDCARB(physDev->X11PhysDev, hPbuffer);
++    }
++    return res;
+ }
+ 
+ /**
+@@ -148,10 +243,34 @@ HDC CDECL DIBDRV_wglGetPbufferDCARB(DIBDRVPHYSDEV *physDev, HPBUFFERARB hPbuffer
+  */
+ BOOL CDECL DIBDRV_wglMakeContextCurrentARB(DIBDRVPHYSDEV* pDrawDev, DIBDRVPHYSDEV* pReadDev, HGLRC hglrc)
+ {
++    BOOL res;
++    
+     TRACE("pDrawDev:%p, pReadDev:%p, hglrc:%p\n", pDrawDev, pReadDev, hglrc);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglMakeContextCurrentARB(pDrawDev->X11PhysDev, pReadDev->X11PhysDev, hglrc);
++    if(pDrawDev->hasDIB && pReadDev->hasDIB)
++    {
++        /* DIB section selected both in source and dest DCs, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pwglMakeContextCurrentARB(pDrawDev->X11PhysDev, pReadDev->X11PhysDev, hglrc);
++    }
++    if(!pDrawDev->hasDIB && !pReadDev->hasDIB)
++    {
++        /* DDB selected both in source and dest DCs, use X11 Driver */
++        res = _DIBDRV_GetDisplayDriver()->pwglMakeContextCurrentARB(pDrawDev->X11PhysDev, pReadDev->X11PhysDev, hglrc);
++    }
++    else if(pDrawDev->hasDIB)
++    {
++        /* DIB selected in pDrawDev, must convert pReadDev to DIB and use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pwglMakeContextCurrentARB(pDrawDev->X11PhysDev, pReadDev->X11PhysDev, hglrc);
++    }
++    else /* if(pReadDev->hasDIB) */
++    {
++        /* DIB selected in pReadDev, must convert pReadDev to DDB and use X11 Driver */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pwglMakeContextCurrentARB(pDrawDev->X11PhysDev, pReadDev->X11PhysDev, hglrc);
++    }
++    return res;
+ }
+ 
+ /**
+@@ -161,10 +280,22 @@ BOOL CDECL DIBDRV_wglMakeContextCurrentARB(DIBDRVPHYSDEV* pDrawDev, DIBDRVPHYSDE
+  */
+ BOOL CDECL DIBDRV_wglMakeCurrent(DIBDRVPHYSDEV *physDev, HGLRC hglrc)
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, hglrc:%p\n", physDev, hglrc);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglMakeCurrent(physDev->X11PhysDev, hglrc);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pwglMakeCurrent(physDev->X11PhysDev, hglrc);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pwglMakeCurrent(physDev->X11PhysDev, hglrc);
++    }
++    return res;
+ }
+ 
+ /**
+@@ -175,10 +306,22 @@ BOOL CDECL DIBDRV_wglMakeCurrent(DIBDRVPHYSDEV *physDev, HGLRC hglrc)
+  */
+ BOOL CDECL DIBDRV_wglSetPixelFormatWINE(DIBDRVPHYSDEV *physDev, int iPixelFormat, const PIXELFORMATDESCRIPTOR *ppfd)
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, iPixelFormat:%d, ppfd:%p\n", physDev, iPixelFormat, ppfd);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglSetPixelFormatWINE(physDev->X11PhysDev, iPixelFormat, ppfd);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pwglSetPixelFormatWINE(physDev->X11PhysDev, iPixelFormat, ppfd);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pwglSetPixelFormatWINE(physDev->X11PhysDev, iPixelFormat, ppfd);
++    }
++    return res;
+ }
+ 
+ /**
+@@ -188,10 +331,14 @@ BOOL CDECL DIBDRV_wglSetPixelFormatWINE(DIBDRVPHYSDEV *physDev, int iPixelFormat
+  */
+ BOOL CDECL DIBDRV_wglShareLists(HGLRC hglrc1, HGLRC hglrc2)
+ {
++    BOOL res;
++    
+     TRACE("hglrc1:%p, hglrc2:%p\n", hglrc1, hglrc2);
+ 
+     ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglShareLists(hglrc1, hglrc2);
++    res = _DIBDRV_GetDisplayDriver()->pwglShareLists(hglrc1, hglrc2);
++
++    return res;
+ }
+ 
+ /**
+@@ -201,10 +348,22 @@ BOOL CDECL DIBDRV_wglShareLists(HGLRC hglrc1, HGLRC hglrc2)
+  */
+ BOOL CDECL DIBDRV_wglUseFontBitmapsA(DIBDRVPHYSDEV *physDev, DWORD first, DWORD count, DWORD listBase)
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, first:%d, count:%d, listBase:%d\n", physDev, first, count, listBase);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglUseFontBitmapsA(physDev->X11PhysDev, first, count, listBase);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pwglUseFontBitmapsA(physDev->X11PhysDev, first, count, listBase);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pwglUseFontBitmapsA(physDev->X11PhysDev, first, count, listBase);
++    }
++    return res;
+ }
+ 
+ /**
+@@ -214,8 +373,20 @@ BOOL CDECL DIBDRV_wglUseFontBitmapsA(DIBDRVPHYSDEV *physDev, DWORD first, DWORD
+  */
+ BOOL CDECL DIBDRV_wglUseFontBitmapsW(DIBDRVPHYSDEV *physDev, DWORD first, DWORD count, DWORD listBase)
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, first:%d, count:%d, listBase:%d\n", physDev, first, count, listBase);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pwglUseFontBitmapsW(physDev->X11PhysDev, first, count, listBase);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pwglUseFontBitmapsW(physDev->X11PhysDev, first, count, listBase);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pwglUseFontBitmapsW(physDev->X11PhysDev, first, count, listBase);
++    }
++    return res;
+ }
+diff --git a/dlls/winedib.drv/palette.c b/dlls/winedib.drv/palette.c
+index 28fae09..9daf47d 100644
+--- a/dlls/winedib.drv/palette.c
++++ b/dlls/winedib.drv/palette.c
+@@ -30,10 +30,21 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+  */
+ UINT DIBDRV_RealizePalette( DIBDRVPHYSDEV *physDev, HPALETTE hpal, BOOL primary )
+ {
++    UINT res;
++    
+     TRACE("physDev:%p, hpal:%p, primary:%s\n", physDev, hpal, (primary ? "TRUE" : "FALSE"));
+     
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pRealizePalette(physDev->X11PhysDev, hpal, primary);
++    /* we should in any case call X11 function, as UnrealizePalette() doesn't
++     * take a physDev parameter */
++    res = _DIBDRV_GetDisplayDriver()->pRealizePalette(physDev->X11PhysDev, hpal, primary);
++    
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, additional (if needed) engine code */
++        ONCE(FIXME("STUB\n"));
++    }
++
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -41,10 +52,18 @@ UINT DIBDRV_RealizePalette( DIBDRVPHYSDEV *physDev, HPALETTE hpal, BOOL primary
+  */
+ BOOL DIBDRV_UnrealizePalette( HPALETTE hpal )
+ {
++    BOOL res;
++    
+     TRACE("hpal:%p\n", hpal);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pUnrealizePalette(hpal);
++    /* we should in any case call X11 function, as UnrealizePalette() doesn't
++     * take a physDev parameter */
++    res = _DIBDRV_GetDisplayDriver()->pUnrealizePalette(hpal);
++    
++    /* additional Engine code here, if needed */
++    ONCE(FIXME("STUB\n"));
++
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -53,10 +72,22 @@ BOOL DIBDRV_UnrealizePalette( HPALETTE hpal )
+ UINT DIBDRV_GetSystemPaletteEntries( DIBDRVPHYSDEV *physDev, UINT start, UINT count,
+                                      LPPALETTEENTRY entries )
+ {
++    UINT res;
++    
+     TRACE("physDev:%p, start:%d, count:%d, entries:%p\n", physDev, start, count, entries);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetSystemPaletteEntries(physDev->X11PhysDev, start, count, entries);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetSystemPaletteEntries(physDev->X11PhysDev, start, count, entries);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetSystemPaletteEntries(physDev->X11PhysDev, start, count, entries);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -64,10 +95,22 @@ UINT DIBDRV_GetSystemPaletteEntries( DIBDRVPHYSDEV *physDev, UINT start, UINT co
+  */
+ COLORREF DIBDRV_GetNearestColor( DIBDRVPHYSDEV *physDev, COLORREF color )
+ {
++    COLORREF res;
++    
+     TRACE("physDev:%p, color:%x\n", physDev, color);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetNearestColor(physDev->X11PhysDev, color);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetNearestColor(physDev->X11PhysDev, color);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetNearestColor(physDev->X11PhysDev, color);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -75,16 +118,40 @@ COLORREF DIBDRV_GetNearestColor( DIBDRVPHYSDEV *physDev, COLORREF color )
+  */
+ UINT DIBDRV_RealizeDefaultPalette( DIBDRVPHYSDEV *physDev )
+ {
++    UINT res;
++    
+     TRACE("physDev:%p\n", physDev);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pRealizeDefaultPalette(physDev->X11PhysDev);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pRealizeDefaultPalette(physDev->X11PhysDev);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pRealizeDefaultPalette(physDev->X11PhysDev);
++    }
++    return res;
+ }
+ 
+ BOOL DIBDRV_GetICMProfile(DIBDRVPHYSDEV *physDev, LPDWORD lpcbName, LPWSTR lpszFilename)
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, lpcpName:%p, lpszFilename:%p\n", physDev, lpcbName, lpszFilename);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetICMProfile(physDev->X11PhysDev, lpcbName, lpszFilename);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetICMProfile(physDev->X11PhysDev, lpcbName, lpszFilename);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetICMProfile(physDev->X11PhysDev, lpcbName, lpszFilename);
++    }
++    return res;
+ }
+diff --git a/dlls/winedib.drv/pen_brush.c b/dlls/winedib.drv/pen_brush.c
+index 1e992e0..bde2f23 100644
+--- a/dlls/winedib.drv/pen_brush.c
++++ b/dlls/winedib.drv/pen_brush.c
+@@ -31,10 +31,22 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+  */
+ HPEN DIBDRV_SelectPen( DIBDRVPHYSDEV *physDev, HPEN hpen )
+ {
++    HPEN res;
++    
+     TRACE("physDev:%p, hpen:%p\n", physDev, hpen);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSelectPen(physDev->X11PhysDev, hpen);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSelectPen(physDev->X11PhysDev, hpen);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSelectPen(physDev->X11PhysDev, hpen);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -42,10 +54,22 @@ HPEN DIBDRV_SelectPen( DIBDRVPHYSDEV *physDev, HPEN hpen )
+  */
+ COLORREF DIBDRV_SetDCPenColor( DIBDRVPHYSDEV *physDev, COLORREF crColor )
+ {
++    COLORREF res;
++    
+     TRACE("physDev:%p, crColor:%x\n", physDev, crColor);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetDCPenColor(physDev->X11PhysDev, crColor);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSetDCPenColor(physDev->X11PhysDev, crColor);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSetDCPenColor(physDev->X11PhysDev, crColor);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -53,10 +77,22 @@ COLORREF DIBDRV_SetDCPenColor( DIBDRVPHYSDEV *physDev, COLORREF crColor )
+  */
+ HBRUSH DIBDRV_SelectBrush( DIBDRVPHYSDEV *physDev, HBRUSH hbrush )
+ {
++    HBRUSH res;
++    
+     TRACE("physDev:%p, hbrush:%p\n", physDev, hbrush);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSelectBrush(physDev->X11PhysDev, hbrush);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSelectBrush(physDev->X11PhysDev, hbrush);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSelectBrush(physDev->X11PhysDev, hbrush);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -64,10 +100,22 @@ HBRUSH DIBDRV_SelectBrush( DIBDRVPHYSDEV *physDev, HBRUSH hbrush )
+  */
+ COLORREF DIBDRV_SetDCBrushColor( DIBDRVPHYSDEV *physDev, COLORREF crColor )
+ {
++    COLORREF res;
++    
+     TRACE("physDev:%p, crColor:%x\n", physDev, crColor);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetDCBrushColor(physDev->X11PhysDev, crColor);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSetDCBrushColor(physDev->X11PhysDev, crColor);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSetDCBrushColor(physDev->X11PhysDev, crColor);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -79,7 +127,6 @@ INT DIBDRV_SetROP2( DIBDRVPHYSDEV *physDev, INT rop )
+     
+     TRACE("physDev:%p, rop:%x\n", physDev, rop);
+ 
+-    ONCE(FIXME("stub\n"));
+     prevRop = physDev->rop2;
+     physDev->rop2 = rop;
+     return prevRop;
+@@ -91,8 +138,20 @@ INT DIBDRV_SetROP2( DIBDRVPHYSDEV *physDev, INT rop )
+  */
+ COLORREF DIBDRV_SetBkColor( DIBDRVPHYSDEV *physDev, COLORREF color )
+ {
++    COLORREF res;
++    
+     TRACE("physDev:%p, color:%x\n", physDev, color);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetBkColor(physDev->X11PhysDev, color);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSetBkColor(physDev->X11PhysDev, color);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSetBkColor(physDev->X11PhysDev, color);
++    }
++    return res;
+ }
+diff --git a/dlls/winedib.drv/text.c b/dlls/winedib.drv/text.c
+index fdb075f..0176011 100644
+--- a/dlls/winedib.drv/text.c
++++ b/dlls/winedib.drv/text.c
+@@ -28,17 +28,29 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+ /***********************************************************************
+  *           DIBDRV_ExtTextOut
+  */
+-BOOL
+-DIBDRV_ExtTextOut( DIBDRVPHYSDEV *physDev, INT x, INT y, UINT flags,
+-                   const RECT *lprect, LPCWSTR wstr, UINT count,
+-                   const INT *lpDx )
++BOOL DIBDRV_ExtTextOut( DIBDRVPHYSDEV *physDev, INT x, INT y, UINT flags,
++                        const RECT *lprect, LPCWSTR wstr, UINT count,
++                        const INT *lpDx )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, x:%d, y:%d, flags:%x, lprect:%p, wstr:%s, count:%d, lpDx:%p\n",
+           physDev, x, y, flags, lprect, debugstr_w(wstr), count, lpDx);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pExtTextOut(physDev->X11PhysDev, x, y, flags, lprect,
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pExtTextOut(physDev->X11PhysDev, x, y, flags, lprect,
+                                                    wstr, count, lpDx);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pExtTextOut(physDev->X11PhysDev, x, y, flags, lprect,
++                                                   wstr, count, lpDx);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -47,9 +59,23 @@ DIBDRV_ExtTextOut( DIBDRVPHYSDEV *physDev, INT x, INT y, UINT flags,
+ BOOL DIBDRV_GetTextExtentExPoint( DIBDRVPHYSDEV *physDev, LPCWSTR str, INT count,
+                                   INT maxExt, LPINT lpnFit, LPINT alpDx, LPSIZE size )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, str:%s, count:%d, maxExt:%d, lpnFit:%p, alpDx:%p, size:%p\n",
+         physDev, debugstr_w(str), count, maxExt, lpnFit, alpDx, size);
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetTextExtentExPoint(physDev->X11PhysDev, str, count, maxExt,
+-                                                             lpnFit, alpDx, size);
++
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetTextExtentExPoint(physDev->X11PhysDev, str, count, maxExt,
++                                                                lpnFit, alpDx, size);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetTextExtentExPoint(physDev->X11PhysDev, str, count, maxExt,
++                                                                lpnFit, alpDx, size);
++    }
++    return res;
+ }
+diff --git a/dlls/winedib.drv/video.c b/dlls/winedib.drv/video.c
+index 6490ac6..730e62a 100644
+--- a/dlls/winedib.drv/video.c
++++ b/dlls/winedib.drv/video.c
+@@ -30,10 +30,22 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+  */
+ BOOL DIBDRV_GetDeviceGammaRamp( DIBDRVPHYSDEV *physDev, LPVOID ramp )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, ramp:%p\n", physDev, ramp);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pGetDeviceGammaRamp(physDev->X11PhysDev, ramp);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pGetDeviceGammaRamp(physDev->X11PhysDev, ramp);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pGetDeviceGammaRamp(physDev->X11PhysDev, ramp);
++    }
++    return res;
+ }
+ 
+ /***********************************************************************
+@@ -41,8 +53,20 @@ BOOL DIBDRV_GetDeviceGammaRamp( DIBDRVPHYSDEV *physDev, LPVOID ramp )
+  */
+ BOOL DIBDRV_SetDeviceGammaRamp( DIBDRVPHYSDEV *physDev, LPVOID ramp )
+ {
++    BOOL res;
++    
+     TRACE("physDev:%p, ramp:%p\n", physDev, ramp);
+ 
+-    ONCE(FIXME("stub\n"));
+-    return _DIBDRV_GetDisplayDriver()->pSetDeviceGammaRamp(physDev->X11PhysDev, ramp);
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
++        ONCE(FIXME("TEMPORARY - fallback to X11 driver\n"));
++        res = _DIBDRV_GetDisplayDriver()->pSetDeviceGammaRamp(physDev->X11PhysDev, ramp);
++    }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        res = _DIBDRV_GetDisplayDriver()->pSetDeviceGammaRamp(physDev->X11PhysDev, ramp);
++    }
++    return res;
+ }

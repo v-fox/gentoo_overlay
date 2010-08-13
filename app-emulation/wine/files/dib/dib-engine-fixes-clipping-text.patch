@@ -1,0 +1,1802 @@
+DIB Engine: fixes clipping, text and more
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/bitblt.c             |   22 +++
+ dlls/winedib.drv/clipping.c           |   63 +++++----
+ dlls/winedib.drv/dc.c                 |   16 ++
+ dlls/winedib.drv/dib.c                |   41 +++++-
+ dlls/winedib.drv/dibdrv.h             |   27 ++++
+ dlls/winedib.drv/font.c               |   68 ++++++++-
+ dlls/winedib.drv/freetype.c           |    6 +
+ dlls/winedib.drv/freetype.h           |    4 +
+ dlls/winedib.drv/graphics.c           |  204 +++++++++++++++++++++-------
+ dlls/winedib.drv/palette.c            |   16 +-
+ dlls/winedib.drv/pen_brush.c          |   13 ++
+ dlls/winedib.drv/primitives.c         |   18 +-
+ dlls/winedib.drv/primitives_bitblt.c  |   26 ++--
+ dlls/winedib.drv/primitives_convert.c |   24 ++-
+ dlls/winedib.drv/primitives_font.c    |  242 +++++++++++++++++++++++++--------
+ dlls/winedib.drv/primitives_rop3.c    |    2 
+ dlls/winedib.drv/text.c               |  239 +++++++++++++++++++--------------
+ 17 files changed, 738 insertions(+), 293 deletions(-)
+
+diff --git a/dlls/winedib.drv/bitblt.c b/dlls/winedib.drv/bitblt.c
+index 05c9392..db66142 100644
+--- a/dlls/winedib.drv/bitblt.c
++++ b/dlls/winedib.drv/bitblt.c
+@@ -261,6 +261,12 @@ BOOL _DIBDRV_InternalAlphaBlend( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+     SIZE szSrc, szDst;
+     int iRec;
+     RECT dstClip, srcClip;
++    
++    /* converts to device spaces */
++    _DIBDRV_Position_ws2ds(physDevDst, &xDst, &yDst);
++    _DIBDRV_Sizes_ws2ds(physDevDst, &widthDst, &heightDst);
++    _DIBDRV_Position_ws2ds(physDevSrc, &xSrc, &ySrc);
++    _DIBDRV_Sizes_ws2ds(physDevSrc, &widthSrc, &heightSrc);
+ 
+     /* first clip on physical DC sizes */
+     setPoint(&pd, xDst, yDst);
+@@ -320,7 +326,6 @@ BOOL DIBDRV_AlphaBlend( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst, INT width
+           xDst, yDst, widthDst, heightDst,
+           physDevSrc, physDevSrc->hasDIB ? "DIB-" : "DDB", physDevSrc->hasDIB ? _DIBDRVBITMAP_GetFormatName(&physDevSrc->physBitmap) : "",
+           xSrc, ySrc, widthSrc, heightSrc));
+-          
+ 
+     /* if sizes are null or negative, returns false */
+     if(widthSrc <= 0 || heightSrc <= 0 || widthDst <= 0 || heightDst <= 0)
+@@ -422,6 +427,12 @@ BOOL _DIBDRV_InternalBitBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+     int iRec;
+     RECT dstClip, srcClip;
+ 
++    /* converts to device spaces */
++    _DIBDRV_Position_ws2ds(physDevDst, &xDst, &yDst);
++    _DIBDRV_Sizes_ws2ds(physDevDst, &width, &height);
++    if(physDevSrc)
++        _DIBDRV_Position_ws2ds(physDevSrc, &xSrc, &ySrc);
++
+     /* first clip on physical DC sizes */
+     setPoint(&pd, xDst, yDst);
+     setPoint(&ps, xSrc, ySrc);
+@@ -633,6 +644,15 @@ BOOL _DIBDRV_InternalStretchBlt( DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+     int iRec;
+     RECT dstClip, srcClip;
+ 
++    /* converts to device spaces */
++    _DIBDRV_Position_ws2ds(physDevDst, &xDst, &yDst);
++    _DIBDRV_Sizes_ws2ds(physDevDst, &widthDst, &heightDst);
++    if(physDevSrc)
++    {
++        _DIBDRV_Position_ws2ds(physDevSrc, &xSrc, &ySrc);
++        _DIBDRV_Sizes_ws2ds(physDevSrc, &widthSrc, &heightSrc);
++    }
++
+     /* first clip on physical DC sizes */
+     setPoint(&pd, xDst, yDst);
+     setPoint(&ps, xSrc, ySrc);
+diff --git a/dlls/winedib.drv/clipping.c b/dlls/winedib.drv/clipping.c
+index ed10b92..ada1f7f 100644
+--- a/dlls/winedib.drv/clipping.c
++++ b/dlls/winedib.drv/clipping.c
+@@ -36,39 +36,44 @@ void DIBDRV_SetDeviceClipping( DIBDRVPHYSDEV *physDev, HRGN vis_rgn, HRGN clip_r
+ 
+     MAYBE(TRACE("physDev:%p, vis_rgn:%p, clip_rgn:%p\n", physDev, vis_rgn, clip_rgn));
+ 
+-    /* sets the region for X11 driver anyways... we may change bitmap later on */
+-    _DIBDRV_GetDisplayDriver()->pSetDeviceClipping(physDev->X11PhysDev, vis_rgn, clip_rgn);
+-    
+-    /* then we set the region for DIB engine, same reason */
++    if(physDev->hasDIB)
++    {
++        /* DIB section selected in, use DIB Engine */
+ 
+-    CombineRgn( physDev->region, vis_rgn, clip_rgn, clip_rgn ? RGN_AND : RGN_COPY );
++        CombineRgn( physDev->region, vis_rgn, clip_rgn, clip_rgn ? RGN_AND : RGN_COPY );
+ 
+-    /* get region rectangles */
+-    if(!(size = GetRegionData(physDev->region, 0, NULL)))
+-        return;
+-    data = HeapAlloc(GetProcessHeap(), 0, size);
+-    if (!GetRegionData(physDev->region, size, data))
+-    {
+-        HeapFree( GetProcessHeap(), 0, data );
+-        return;
+-    }
+-    
+-    /* frees any previous regions rectangles in DC */
+-    if(physDev->regionData)
+-        HeapFree(GetProcessHeap(), 0, physDev->regionData);
++        /* get region rectangles */
++        if(!(size = GetRegionData(physDev->region, 0, NULL)))
++            return;
++        data = HeapAlloc(GetProcessHeap(), 0, size);
++        if (!GetRegionData(physDev->region, size, data))
++        {
++            HeapFree( GetProcessHeap(), 0, data );
++            return;
++        }
+         
+-    /* sets the rectangles on physDev */
+-    physDev->regionData = data;
+-    physDev->regionRects = (RECT *)data->Buffer;
+-    physDev->regionRectCount = data->rdh.nCount;
+-    
+-    if(TRACE_ON(dibdrv))
+-    {
+-        TRACE("Region dump : %d rectangles\n", physDev->regionRectCount);
+-        for(iRect = 0; iRect < physDev->regionRectCount; iRect++)
++        /* frees any previous regions rectangles in DC */
++        if(physDev->regionData)
++            HeapFree(GetProcessHeap(), 0, physDev->regionData);
++            
++        /* sets the rectangles on physDev */
++        physDev->regionData = data;
++        physDev->regionRects = (RECT *)data->Buffer;
++        physDev->regionRectCount = data->rdh.nCount;
++        
++        if(TRACE_ON(dibdrv))
+         {
+-            RECT *r = physDev->regionRects + iRect;
+-            TRACE("Rect #%03d, x1:%4d, y1:%4d, x2:%4d, y2:%4d\n", iRect, r->left, r->top, r->right, r->bottom);
++            TRACE("Region dump : %d rectangles\n", physDev->regionRectCount);
++            for(iRect = 0; iRect < physDev->regionRectCount; iRect++)
++            {
++                RECT *r = physDev->regionRects + iRect;
++                TRACE("Rect #%03d, x1:%4d, y1:%4d, x2:%4d, y2:%4d\n", iRect, r->left, r->top, r->right, r->bottom);
++            }
+         }
+     }
++    else
++    {
++        /* DDB selected in, use X11 driver */
++        _DIBDRV_GetDisplayDriver()->pSetDeviceClipping(physDev->X11PhysDev, vis_rgn, clip_rgn);
++    }
+ }
+diff --git a/dlls/winedib.drv/dc.c b/dlls/winedib.drv/dc.c
+index 8212d42..9ffceee 100644
+--- a/dlls/winedib.drv/dc.c
++++ b/dlls/winedib.drv/dc.c
+@@ -43,11 +43,12 @@ static int device_init_done;
+ 
+ /* NOTE :
+     Removing TC_RA_ABLE avoids bitmapped fonts, so FT_Face is always non-NULL
++    UPDATE : remove TC_RA_ABLE seems unneeded
+     Adding TC_VA_ABLE forces to use gdi fonts always, so we can get an FT_Face
+ */
+ unsigned int text_caps = (TC_OP_CHARACTER | TC_OP_STROKE | TC_CP_STROKE |
+                           TC_CR_ANY | TC_SA_DOUBLE | TC_SA_INTEGER |
+-                          TC_SA_CONTIN | TC_UA_ABLE | TC_SO_ABLE /* | TC_RA_ABLE */ | TC_VA_ABLE);
++                          TC_SA_CONTIN | TC_UA_ABLE | TC_SO_ABLE | TC_RA_ABLE | TC_VA_ABLE);
+                           /* X11R6 adds TC_SF_X_YINDEP, Xrender adds TC_VA_ABLE */
+ 
+ 
+@@ -119,6 +120,10 @@ static void device_init(void)
+     device_init_done = TRUE;
+ }
+ 
++/* dummy null function for pen and brush */
++static void dummy3(DIBDRVPHYSDEV *p, int a, int b, int c) {}
++static void dummy4(DIBDRVPHYSDEV *p, int a, int b, int c, int d) {}
++
+ /**********************************************************************
+  *           DIBDRV_CreateDC
+  */
+@@ -178,12 +183,19 @@ BOOL DIBDRV_CreateDC( HDC hdc, DIBDRVPHYSDEV **pdev, LPCWSTR driver, LPCWSTR dev
+     physDev->penColor = 0;
+     _DIBDRV_CalcAndXorMasks(physDev->rop2, 0, &physDev->penAnd, &physDev->penXor);
+     
++    physDev->penStyle = PS_NULL;
++    physDev->penHLine = dummy3;
++    physDev->penVLine = dummy3;
++    physDev->penLine  = dummy4;
++    physDev->penPattern = NULL;
++    
+     physDev->brushColor = 0;
+     _DIBDRV_CalcAndXorMasks(physDev->rop2, 0, &physDev->brushAnd, &physDev->brushXor);
+     physDev->brushAnds = NULL;
+     physDev->brushXors = NULL;
+     
+     physDev->brushStyle = BS_NULL;
++    physDev->brushHLine = dummy3;
+     
+     physDev->isBrushBitmap = FALSE;
+     _DIBDRVBITMAP_Clear(&physDev->brushBitmap);
+@@ -193,8 +205,10 @@ BOOL DIBDRV_CreateDC( HDC hdc, DIBDRVPHYSDEV **pdev, LPCWSTR driver, LPCWSTR dev
+     physDev->textColor = 0;
+     physDev->textBackground = 0;
+ 
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+     /* text color table for antialiased fonts */
+     memset(physDev->textColorTable, 0, 256);
++#endif
+ 
+     /* freetype face associated to current DC HFONT */
+     physDev->face = NULL;
+diff --git a/dlls/winedib.drv/dib.c b/dlls/winedib.drv/dib.c
+index b72c34a..653148d 100644
+--- a/dlls/winedib.drv/dib.c
++++ b/dlls/winedib.drv/dib.c
+@@ -65,15 +65,46 @@ INT DIBDRV_GetDIBits( DIBDRVPHYSDEV *physDev, HBITMAP hbitmap, UINT startscan,
+ UINT DIBDRV_SetDIBColorTable( DIBDRVPHYSDEV *physDev, UINT start, UINT count,
+                               const RGBQUAD *colors )
+ {
+-    UINT res;
++    DIBDRVBITMAP *dib = &physDev->physBitmap;
+     
+     MAYBE(TRACE("physDev:%p, start:%d, count:%d, colors:%p\n", physDev, start, count, colors));
+ 
+     /* SetDIBColorTable operates on a DIB, so we use the engine */
+-    ONCE(FIXME("STUB\n"));
+-    res = 0;
+-
+-    return res;
++    
++    /* if bpp > 8, some error occurred... */
++    if(dib->bitCount > 8)
++    {
++        ERR("Called for BPP > 8\n");
++        return 0;
++    }
++    
++    /* if dib hasn't a color table, or has a small one, we must before
++       create/extend it */
++    if(!(dib->colorTable))
++    {
++        dib->colorTableSize = (1 << dib->bitCount);
++        dib->colorTable = HeapAlloc(GetProcessHeap(), 0, sizeof(RGBQUAD) * dib->colorTableSize);
++    }
++    else if(dib->colorTableSize < (1 << dib->bitCount))
++    {
++        int newSize = (1 << dib->bitCount);
++        RGBQUAD *newTable = HeapAlloc(GetProcessHeap(), HEAP_ZERO_MEMORY, sizeof(RGBQUAD) * newSize);
++        memcpy(newTable, dib->colorTable, sizeof(RGBQUAD) * dib->colorTableSize);
++        HeapFree(GetProcessHeap(), 0, dib->colorTable);
++        dib->colorTable = newTable;
++        dib->colorTableSize = newSize;
++    }
++    
++    /* sanity check */
++    if(start + count > dib->colorTableSize)
++    {
++        ERR("Out of range setting color table, size is %d, requested is %d\n", dib->colorTableSize, start+count);
++        return 0;
++    }
++    memcpy(dib->colorTable + start, colors, sizeof(RGBQUAD) * count);
++    dib->colorTableGrabbed = TRUE;
++
++    return TRUE;
+ }
+ 
+ /***********************************************************************
+diff --git a/dlls/winedib.drv/dibdrv.h b/dlls/winedib.drv/dibdrv.h
+index b0f128e..66cc114 100644
+--- a/dlls/winedib.drv/dibdrv.h
++++ b/dlls/winedib.drv/dibdrv.h
+@@ -44,6 +44,9 @@
+ /* enable this if you want debugging (i.e. TRACEs) output */
+ #define DIBDRV_ENABLE_MAYBE
+ 
++/* enable this if you want antialiased fonts */
++#define DIBDRV_ANTIALIASED_FONTS
++
+ /* provide a way to make debugging output appear
+    only once. Usage example:
+    ONCE(FIXME("Some message\n")); */
+@@ -102,7 +105,7 @@ typedef struct _DIBDRV_PRIMITIVE_FUNCS
+                                 const struct _DIBDRVPHYSDEV *physDevSrc, int xSrc, int ySrc, int widthSrc, int heightSrc, DWORD rop );
+                                 
+     /* font drawing helper */
+-    void  (* FreetypeBlit)     (      struct _DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp);
++    void  (* FreetypeBlit)     (      struct _DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
+ 
+ } DIBDRV_PRIMITIVE_FUNCS;
+ 
+@@ -225,6 +228,9 @@ typedef struct _DIBDRVPHYSDEV
+     DWORD curDash, leftInDash;
+     enum MARKSPACE { mark, space } markSpace;
+     
++    /* pen style */
++    UINT penStyle;
++    
+     /* pen drawing functions */
+     void (* penHLine)  (struct _DIBDRVPHYSDEV *physDev, int x1, int x2, int y);
+     void (* penVLine)  (struct _DIBDRVPHYSDEV *physDev, int x, int y1, int y2);
+@@ -250,8 +256,10 @@ typedef struct _DIBDRVPHYSDEV
+     COLORREF textColor;
+     COLORREF textBackground;
+ 
++#ifdef DIBDRV_ANTIALIASED_FONTS
+     /* text color table for antialiased fonts */
+     COLORREF textColorTable[256];
++#endif
+ 
+     /* freetype face associated to current DC HFONT */
+     FT_Face face;
+@@ -388,4 +396,21 @@ HBITMAP _DIBDRV_ConvertDevDDBtoDIB( HDC hdcSrc, HDC hdcDst, int xSrc, int ySrc,
+  *           DIBDRV_GetDeviceCaps */
+ INT DIBDRV_GetDeviceCaps( DIBDRVPHYSDEV *physDev, INT cap );
+ 
++/* *********************************************************************
++ * GEOMETRIC UTILITIES
++ * ********************************************************************/
++
++/* intersect 2 rectangles (just to not use USER32 one...) */
++BOOL _DIBDRV_IntersectRect(RECT *d, const RECT *s1, const RECT *s2);
++
++/* converts positions  from Word space to Device space */
++void _DIBDRV_Position_ws2ds(DIBDRVPHYSDEV *physDev, int *x, int *y);
++void _DIBDRV_Positions_ws2ds(DIBDRVPHYSDEV *physDev, int *x1, int *y1, int *x2, int *y2);
++
++/* converts sizes from Word space to Device space */
++void _DIBDRV_Sizes_ws2ds(DIBDRVPHYSDEV *physDev, int *w, int *h);
++
++/* converts a rectangle form Word space to Device space */
++void _DIBDRV_Rect_ws2ds(DIBDRVPHYSDEV *physDev, const RECT *src, RECT *dst);
++
+ #endif
+diff --git a/dlls/winedib.drv/font.c b/dlls/winedib.drv/font.c
+index 215b27d..f7ea8dc 100644
+--- a/dlls/winedib.drv/font.c
++++ b/dlls/winedib.drv/font.c
+@@ -26,14 +26,56 @@
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+ 
++
++#if 0
++/* prints out some info about face */
++void PrintFaceInfo(FT_Face face)
++{
++    int i;
++    
++    fprintf(stderr, "----------------------------------------------------------\n");
++    fprintf(stderr, "Family name :%s\n", face->family_name);
++    fprintf(stderr, "Style name  :%s\n", face->style_name);
++    fprintf(stderr, "Num fixed sizes : %d\n", face->num_fixed_sizes);
++    if(face->num_fixed_sizes)
++    {
++        fprintf(stderr, "Fixed sizes :");
++        for(i = 0; i < face->num_fixed_sizes; i++)
++            fprintf(stderr, " (%d, %d)", face->available_sizes[i].width, face->available_sizes[i].height);
++        fprintf(stderr, "\n");
++    }
++    fprintf(stderr, "Face flags: ");
++    if(face->face_flags & FT_FACE_FLAG_SCALABLE          ) fprintf(stderr, "FT_FACE_FLAG_SCALABLE ");
++    if(face->face_flags & FT_FACE_FLAG_FIXED_SIZES       ) fprintf(stderr, "FT_FACE_FLAG_FIXED_SIZES ");
++    if(face->face_flags & FT_FACE_FLAG_FIXED_WIDTH       ) fprintf(stderr, "FT_FACE_FLAG_FIXED_WIDTH ");
++    if(face->face_flags & FT_FACE_FLAG_SFNT              ) fprintf(stderr, "FT_FACE_FLAG_SFNT ");
++    if(face->face_flags & FT_FACE_FLAG_HORIZONTAL        ) fprintf(stderr, "FT_FACE_FLAG_HORIZONTAL ");
++    if(face->face_flags & FT_FACE_FLAG_VERTICAL          ) fprintf(stderr, "FT_FACE_FLAG_VERTICAL ");
++    if(face->face_flags & FT_FACE_FLAG_KERNING           ) fprintf(stderr, "FT_FACE_FLAG_KERNING ");
++    if(face->face_flags & FT_FACE_FLAG_FAST_GLYPHS       ) fprintf(stderr, "FT_FACE_FLAG_FAST_GLYPHS ");
++    if(face->face_flags & FT_FACE_FLAG_MULTIPLE_MASTERS  ) fprintf(stderr, "FT_FACE_FLAG_MULTIPLE_MASTERS ");
++    if(face->face_flags & FT_FACE_FLAG_GLYPH_NAMES       ) fprintf(stderr, "FT_FACE_FLAG_GLYPH_NAMES ");
++    if(face->face_flags & FT_FACE_FLAG_EXTERNAL_STREAM   ) fprintf(stderr, "FT_FACE_FLAG_EXTERNAL_STREAM ");
++    if(face->face_flags & FT_FACE_FLAG_HINTER            ) fprintf(stderr, "FT_FACE_FLAG_HINTER ");
++    if(face->face_flags & FT_FACE_FLAG_CID_KEYED         ) fprintf(stderr, "FT_FACE_FLAG_CID_KEYED ");
++    if(face->face_flags & FT_FACE_FLAG_TRICKY            ) fprintf(stderr, "FT_FACE_FLAG_TRICKY ");
++    fprintf(stderr, "\n");
++    
++    fprintf(stderr, "Style flags: ");
++    if(face->style_flags & FT_STYLE_FLAG_ITALIC) fprintf(stderr, "FT_STYLE_FLAG_ITALIC ");
++    if(face->style_flags & FT_STYLE_FLAG_BOLD)   fprintf(stderr, "FT_STYLE_FLAG_BOLD ");
++    fprintf(stderr, "\n");
++    fprintf(stderr, "----------------------------------------------------------\n");
++}
++#endif
++
++
+ /**********************************************************************
+  *          DIBDRV_SetTextColor
+  */
+ COLORREF DIBDRV_SetTextColor( DIBDRVPHYSDEV *physDev, COLORREF color )
+ {
+     COLORREF res;
+-    INT r, g, b;
+-    INT i;
+     
+     MAYBE(TRACE("physDev:%p, color:%08x\n", physDev, color));
+ 
+@@ -45,24 +87,30 @@ COLORREF DIBDRV_SetTextColor( DIBDRVPHYSDEV *physDev, COLORREF color )
+         if(color == physDev->textColor)
+             return color;
+ 
+-        /* stores old color */
++        /* stores old color and sets new one */
+         res = physDev->textColor;
+-        
++        physDev->textColor = color;
++
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+         /* fills the text color table used on antialiased font display */
+         if(physDev->physBitmap.funcs)
+         {
++            BYTE r, g, b;
++            INT i;
++
+             r = GetRValue(color);
+             g = GetGValue(color);
+             b = GetBValue(color);
+             for(i = 0; i < 256; i++)
+             {
+                 physDev->textColorTable[i] = physDev->physBitmap.funcs->ColorToPixel(&physDev->physBitmap, RGB(
+-                    MulDiv(r, i, 256),
+-                    MulDiv(g, i, 256),
+-                    MulDiv(b, i, 256)
++                    MulDiv(r, i, 255),
++                    MulDiv(g, i, 255),
++                    MulDiv(b, i, 255)
+                 ));               
+             }
+         }
++#endif        
+         
+         /* returns previous text color */
+         return res;
+@@ -111,7 +159,11 @@ HFONT DIBDRV_SelectFont( DIBDRVPHYSDEV *physDev, HFONT hfont, GdiFont *gdiFont )
+             FIXME("Error, null Ft_Face\n");
+             return hfont;
+         }
+-
++        
++#if 0
++        /* prints out some info about face */
++        if(TRACE_ON(dibdrv)) MAYBE(PrintFaceInfo(physDev->face));
++#endif
+         /* setup the correct charmap.... maybe */
+         for (i = 0; i < physDev->face->num_charmaps; ++i)
+         {
+diff --git a/dlls/winedib.drv/freetype.c b/dlls/winedib.drv/freetype.c
+index 111a18b..f1cd7b4 100644
+--- a/dlls/winedib.drv/freetype.c
++++ b/dlls/winedib.drv/freetype.c
+@@ -46,6 +46,9 @@ MAKE_FUNCPTR(FT_Set_Pixel_Sizes)
+ MAKE_FUNCPTR(FT_Get_First_Char)
+ MAKE_FUNCPTR(FT_Render_Glyph)
+ MAKE_FUNCPTR(FT_Glyph_Transform)
++MAKE_FUNCPTR(FT_Bitmap_New)
++MAKE_FUNCPTR(FT_Bitmap_Done)
++MAKE_FUNCPTR(FT_Bitmap_Convert)
+ #undef MAKE_FUNCPTR
+ 
+ /* freetype initialization flag */
+@@ -95,6 +98,9 @@ BOOL _DIBDRV_FreeType_Init(void)
+     LOAD_FUNCPTR(FT_Get_First_Char)
+     LOAD_FUNCPTR(FT_Render_Glyph)
+     LOAD_FUNCPTR(FT_Glyph_Transform)
++    LOAD_FUNCPTR(FT_Bitmap_New)
++    LOAD_FUNCPTR(FT_Bitmap_Done)
++    LOAD_FUNCPTR(FT_Bitmap_Convert)
+ #undef LOAD_FUNCPTR
+ 
+     error = pFT_Init_FreeType(&DIBDRV_ftLibrary);
+diff --git a/dlls/winedib.drv/freetype.h b/dlls/winedib.drv/freetype.h
+index 93619ff..3517af5 100644
+--- a/dlls/winedib.drv/freetype.h
++++ b/dlls/winedib.drv/freetype.h
+@@ -28,6 +28,7 @@
+ #include FT_TRUETYPE_TABLES_H
+ #include FT_SFNT_NAMES_H
+ #include FT_TRUETYPE_IDS_H
++#include FT_BITMAP_H
+ 
+ /* freetype library handle */
+ extern FT_Library DIBDRV_ftLibrary;
+@@ -179,6 +180,9 @@ MAKE_FUNCPTR(FT_Set_Pixel_Sizes)
+ MAKE_FUNCPTR(FT_Get_First_Char)
+ MAKE_FUNCPTR(FT_Render_Glyph)
+ MAKE_FUNCPTR(FT_Glyph_Transform)
++MAKE_FUNCPTR(FT_Bitmap_New)
++MAKE_FUNCPTR(FT_Bitmap_Done)
++MAKE_FUNCPTR(FT_Bitmap_Convert)
+ #undef MAKE_FUNCPTR
+ 
+ #endif /* HAVE_FREETYPE */
+diff --git a/dlls/winedib.drv/graphics.c b/dlls/winedib.drv/graphics.c
+index fba34f5..f62149c 100644
+--- a/dlls/winedib.drv/graphics.c
++++ b/dlls/winedib.drv/graphics.c
+@@ -295,7 +295,7 @@ static BOOL ScanPolygon(const POINT *pt, int count, int ys, POINT **scans, int *
+ }
+ 
+ /* gets bounding box of a polygon */
+-void PolygonBoundingBox(const POINT *pt, int count, RECT *bBox)
++static void PolygonBoundingBox(const POINT *pt, int count, RECT *bBox)
+ {
+     const POINT *p;
+     int iPoint;
+@@ -311,6 +311,76 @@ void PolygonBoundingBox(const POINT *pt, int count, RECT *bBox)
+     }
+ }
+ 
++/* intersect 2 rectangles (just to not use USER32 one...)
++   bottom and tight sides are considered OUTSIDE */
++BOOL _DIBDRV_IntersectRect(RECT *d, const RECT *s1, const RECT *s2)
++{
++    if(s1->right <= s2->left ||
++       s2->right <= s1->left ||
++       s1->bottom <= s2->top ||
++       s2->bottom <= s1->top
++    )
++        return FALSE;
++    d->left = s1->left > s2->left ? s1->left : s2->left;
++    d->top = s1->top > s2->top ? s1->top : s2->top;
++    d->right = s1->right < s2->right ? s1->right : s2->right;
++    d->bottom = s1->bottom < s2->bottom ? s1->bottom : s2->bottom;
++    return TRUE;
++}
++
++/* converts a rectangle form Word space to Device space */
++void _DIBDRV_Rect_ws2ds(DIBDRVPHYSDEV *physDev, const RECT *src, RECT *dst)
++{
++    POINT pts[2];
++    pts[0].x = src->left;
++    pts[0].y = src->top;
++    pts[1].x = src->right;
++    pts[1].y = src->bottom;
++    LPtoDP(physDev->hdc, pts, 2);
++    dst->left   = pts[0].x;
++    dst->top    = pts[0].y;
++    dst->right  = pts[1].x;
++    dst->bottom = pts[1].y;
++}
++
++/* converts positions  from Word space to Device space */
++void _DIBDRV_Position_ws2ds(DIBDRVPHYSDEV *physDev, int *x, int *y)
++{
++    POINT p;
++    p.x = *x;
++    p.y = *y;
++    LPtoDP(physDev->hdc, &p, 1);
++    *x = p.x;
++    *y = p.y;
++}
++
++void _DIBDRV_Positions_ws2ds(DIBDRVPHYSDEV *physDev, int *x1, int *y1, int *x2, int *y2)
++{
++    POINT pts[2];
++    pts[0].x = *x1;
++    pts[0].y = *y1;
++    pts[1].x = *x2;
++    pts[1].y = *y2;
++    LPtoDP(physDev->hdc, pts, 2);
++    *x1 = pts[0].x;
++    *y1 = pts[0].y;
++    *x2 = pts[1].x;
++    *y2 = pts[1].y;
++}
++
++/* converts sizes from Word space to Device space */
++void _DIBDRV_Sizes_ws2ds(DIBDRVPHYSDEV *physDev, int *w, int *h)
++{
++    POINT pts[2];
++    pts[0].x = 0;
++    pts[0].y = 0;
++    pts[1].x = *w;
++    pts[1].y = *h;
++    LPtoDP(physDev->hdc, pts, 2);
++    *w = pts[1].x - pts[0].x;
++    *h = pts[1].y - pts[0].y;
++}
++
+ /***********************************************************************
+  *           DIBDRV_Arc
+  */
+@@ -446,6 +516,7 @@ COLORREF DIBDRV_GetPixel( DIBDRVPHYSDEV *physDev, int x, int y )
+ 
+     if(physDev->hasDIB)
+     {
++        _DIBDRV_Position_ws2ds(physDev, &x, &y);
+         res = physDev->physBitmap.funcs->GetPixel(&physDev->physBitmap, x, y);
+     }
+     else
+@@ -463,22 +534,44 @@ BOOL DIBDRV_LineTo( DIBDRVPHYSDEV *physDev, int x, int y )
+ {
+     BOOL res;
+     POINT curPos;
++    RECT *r;
++    int iRec;
++    POINT p1, p2, pc1, pc2; 
+     
+     MAYBE(TRACE("physDev:%p, x:%d, y:%d\n", physDev, x, y));
+ 
+     if(physDev->hasDIB)
+     {
++        res = FALSE;
+         GetCurrentPositionEx(physDev->hdc, &curPos);
+ 
+-        _DIBDRV_ResetDashOrigin(physDev);
++        /* converts position to device space */
++        p1.x = curPos.x; p1.y = curPos.y;
++        p2.x = x; p2.y = y;
++        LPtoDP(physDev->hdc, &p1, 1);
++        LPtoDP(physDev->hdc, &p2, 1);
+ 
+-        if(curPos.y == y)
+-            physDev->penHLine(physDev, curPos.x, x, y);
+-        else if(curPos.x == x)
+-            physDev->penVLine(physDev, x, curPos.y, y);
+-        else
+-            physDev->penLine(physDev, curPos.x, curPos.y, x, y);
+-        res = TRUE;
++        /* cycle on all current clipping rectangles */
++        r = physDev->regionRects;
++        for(iRec = 0; iRec < physDev->regionRectCount; iRec++, r++)
++        {
++            _DIBDRV_ResetDashOrigin(physDev);
++            
++            /* clipe line on current region area */
++            if(ClipLine(&p1, &p2, r, &pc1, &pc2))
++            {
++                if(pc1.y == pc2.y)
++                    physDev->penHLine(physDev, pc1.x, pc2.x, pc1.y);
++                else if(pc1.x == pc2.x)
++                    physDev->penVLine(physDev, pc1.x, pc1.y, pc2.y);
++                else
++                    physDev->penLine(physDev, pc1.x, pc1.y, pc2.x, pc2.y);
++                res = TRUE;
++            }
++        }
++        
++        /* moves current position to next point */
++        MoveToEx(physDev->hdc, x, y, NULL);
+     }
+     else
+     {
+@@ -583,7 +676,7 @@ BOOL DIBDRV_Polygon( DIBDRVPHYSDEV *physDev, const POINT* ptw, int count )
+     POINT pc1, pc2;
+     
+     MAYBE(TRACE("physDev:%p, pt:%p, count:%d\n", physDev, ptw, count));
+-
++ 
+     if(physDev->hasDIB)
+     {
+         /* DIB section selected in, use DIB Engine */
+@@ -771,58 +864,67 @@ BOOL DIBDRV_PolyPolyline( DIBDRVPHYSDEV *physDev, const POINT* pt, const DWORD*
+  */
+ BOOL DIBDRV_Rectangle( DIBDRVPHYSDEV *physDev, int x1, int y1, int x2, int y2)
+ {
+-    BOOL res = TRUE;
++    BOOL res;
+     int i;
+-    DIBDRVBITMAP *bmp = &physDev->physBitmap;
++    RECT rWorld, rDevice, rClipped;
++    RECT *r;
++    int iRec;
+     
+     MAYBE(TRACE("physDev:%p, left:%d, top:%d, right:%d, bottom:%d\n", physDev, x1, y1, x2, y2));
+ 
+     if(physDev->hasDIB)
+     {
++        res = FALSE;
++        
+         OrderInt(&x1, &x2);
+         OrderInt(&y1, &y2);
+ 
+-        /* temporary fix.... should be done by clipping */
+-        if(x1 < 0) x1 = 0;
+-        if(x2 < 0) x2 = 0;
+-        if(y1 < 0) y1 = 0;
+-        if(y2 < 0) y2 = 0;
+-        if(x1 >= bmp->width)  x1 = bmp->width  - 1;
+-        if(y1 >= bmp->height) y1 = bmp->height - 1;
+-        if(x2 >  bmp->width)  x2 = bmp->width;
+-        if(y2 >  bmp->height) y2 = bmp->height ;
+-        if(x1 >= x2 || y1 >= y2)
+-            goto fin;
++        /* converts to device space */
++        rWorld.left = x1; rWorld.top = y1; rWorld.right = x2; rWorld.bottom = y2;
++        _DIBDRV_Rect_ws2ds(physDev, &rWorld, &rDevice);
+ 
+-        _DIBDRV_ResetDashOrigin(physDev);
+-        
+-        /* particular case where the rectangle
+-           degenerates to a line or a point */
+-        if(x1 >= x2 - 1)
+-        {
+-            physDev->penVLine(physDev, x1, y1, y2);
+-            goto fin;
+-        }
+-        else if (y1 >= y2 -1)
++        /* loop on all clip region rectangles */
++        r = physDev->regionRects;
++        for(iRec = 0; iRec < physDev->regionRectCount; iRec++, r++)
+         {
+-            physDev->penHLine(physDev, x1, x2, y1);
+-            goto fin;
+-        }
+-        
+-        /* Draw the perimeter */
+-        physDev->penHLine(physDev, x1    , x2    , y1   );
+-        physDev->penHLine(physDev, x1    , x2    , y2 - 1);
+-        physDev->penVLine(physDev, x1    , y1 + 1, y2 - 1);
+-        physDev->penVLine(physDev, x2 - 1, y1 + 1, y2 - 1);
+-
+-        /* fill the inside */
+-        if(x2 >= x1 + 2)
+-            for (i = y1 + 1; i < y2 - 1; i++)
+-                physDev->brushHLine(physDev, x1 + 1, x2 - 1, i);
++            /* clips rectangle to current region */
++            if(_DIBDRV_IntersectRect(&rClipped, &rDevice, r))
++            {
++                x1 = rClipped.left; y1 = rClipped.top;
++                x2 = rClipped.right; y2 = rClipped.bottom;
++                
++                _DIBDRV_ResetDashOrigin(physDev);
++                
++                /* fill the inside, if not null brush */
++                if(physDev->brushStyle != BS_NULL)
++                {
++                    if(x2 > x1)
++                        for (i = y1; i < y2; i++)
++                            physDev->brushHLine(physDev, x1, x2, i);
++                }
+ 
+-        res = TRUE;
+-fin:
+-        ;
++                /* draw perimeter, if not null pen */
++                if(physDev->penStyle != PS_NULL)
++                {
++                
++                    /* particular case where the rectangle
++                       degenerates to a line or a point */
++                    if(x1 >= x2 - 1)
++                        physDev->penVLine(physDev, x1, y1, y2);
++                    else if (y1 >= y2 -1)
++                        physDev->penHLine(physDev, x1, x2, y1);
++                    else
++                    {
++                        /* Draw the perimeter */
++                        physDev->penHLine(physDev, x1    , x2    , y1   );
++                        physDev->penHLine(physDev, x1    , x2    , y2 - 1);
++                        physDev->penVLine(physDev, x1    , y1 + 1, y2 - 1);
++                        physDev->penVLine(physDev, x2 - 1, y1 + 1, y2 - 1);
++                    }
++                }
++                res = TRUE;
++            }
++        }
+     }
+     else
+     {
+@@ -870,6 +972,8 @@ COLORREF DIBDRV_SetPixel( DIBDRVPHYSDEV *physDev, int x, int y, COLORREF color )
+ 
+     if(physDev->hasDIB)
+     {
++        _DIBDRV_Position_ws2ds(physDev, &x, &y);
++
+         /* gets previous pixel */
+         res = physDev->physBitmap.funcs->GetPixel(&physDev->physBitmap, x, y);
+      
+diff --git a/dlls/winedib.drv/palette.c b/dlls/winedib.drv/palette.c
+index 148a6d5..a1aa648 100644
+--- a/dlls/winedib.drv/palette.c
++++ b/dlls/winedib.drv/palette.c
+@@ -30,18 +30,22 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+  */
+ UINT DIBDRV_RealizePalette( DIBDRVPHYSDEV *physDev, HPALETTE hpal, BOOL primary )
+ {
+-    UINT res;
++    UINT res = 0;
+     
+     MAYBE(TRACE("physDev:%p, hpal:%p, primary:%s\n", physDev, hpal, (primary ? "TRUE" : "FALSE")));
+     
+-    /* we should in any case call X11 function, as UnrealizePalette() doesn't
+-     * take a physDev parameter */
+-    res = _DIBDRV_GetDisplayDriver()->pRealizePalette(physDev->X11PhysDev, hpal, primary);
+-    
+-    if(physDev->hasDIB)
++    if(physDev && physDev->hasDIB)
+     {
+         /* DIB section selected in, additional (if needed) engine code */
+         ONCE(FIXME("STUB\n"));
++        res = 0;
++    }
++    else
++    {
++        /* we should in any case call X11 function, as UnrealizePalette() doesn't
++         * take a physDev parameter */
++        res = _DIBDRV_GetDisplayDriver()->pRealizePalette(physDev ? physDev->X11PhysDev : NULL, hpal, primary);
++    
+     }
+ 
+     return res;
+diff --git a/dlls/winedib.drv/pen_brush.c b/dlls/winedib.drv/pen_brush.c
+index 31c9cd2..7b15ece 100644
+--- a/dlls/winedib.drv/pen_brush.c
++++ b/dlls/winedib.drv/pen_brush.c
+@@ -290,6 +290,12 @@ static void PatternBrushHLine(DIBDRVPHYSDEV *physDev, int x1, int x2, int y)
+     physDev->physBitmap.funcs->PatternHLine(&physDev->physBitmap, x1, x2, y, and, xor, physDev->brushBitmap.width, x1 % physDev->brushBitmap.width);
+ }
+ 
++/* null function for PS_NULL and BS_NULL pen and brush styles */
++void NullPenHLine(DIBDRVPHYSDEV *physDev, int x1, int x2, int y) {}
++void NullPenVLine(DIBDRVPHYSDEV *physDev, int x, int y1, int y2) {}
++void NullPenLine(DIBDRVPHYSDEV *physDev, int x1, int y1, int x2, int y2) {}
++void NullBrushHLine(DIBDRVPHYSDEV *physDev, int x1, int x2, int y) {}
++
+ /***********************************************************************
+  *           DIBDRV_SelectPen
+  */
+@@ -335,6 +341,12 @@ HPEN DIBDRV_SelectPen( DIBDRVPHYSDEV *physDev, HPEN hpen )
+                 physDev->penPattern = &dashPatterns[logpen.lopnStyle - PS_DASH];
+                 _DIBDRV_ResetDashOrigin(physDev);
+                 break;
++            case PS_NULL:
++                physDev->penHLine = NullPenHLine;
++                physDev->penVLine = NullPenVLine;
++                physDev->penLine  = NullPenLine;
++                physDev->penPattern = NULL;
++                break;
+         }
+         res = hpen;
+     }
+@@ -484,6 +496,7 @@ HBRUSH DIBDRV_SelectBrush( DIBDRVPHYSDEV *physDev, HBRUSH hbrush )
+             {
+                 MAYBE(TRACE("NULL Pattern\n"));
+                 physDev->brushColorref = 0;
++                physDev->brushHLine = NullBrushHLine;
+                 goto solid;
+             }
+                 
+diff --git a/dlls/winedib.drv/primitives.c b/dlls/winedib.drv/primitives.c
+index a2fa04a..2b0fc6e 100644
+--- a/dlls/winedib.drv/primitives.c
++++ b/dlls/winedib.drv/primitives.c
+@@ -139,15 +139,15 @@ BOOL _DIBDRV_AlphaBlend_generic(DIBDRVPHYSDEV *physDevDst, int xDst, int yDst,
+                     
+ /* ------------------------------------------------------------*/
+ /*               FREETYPE FONT BITMAP BLITTING                 */
+-void _DIBDRV_freetype_blit_8888        (DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
+-void _DIBDRV_freetype_blit_32_RGB      (DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
+-void _DIBDRV_freetype_blit_32_BITFIELDS(DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
+-void _DIBDRV_freetype_blit_24          (DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
+-void _DIBDRV_freetype_blit_16_RGB      (DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
+-void _DIBDRV_freetype_blit_16_BITFIELDS(DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
+-void _DIBDRV_freetype_blit_8           (DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
+-void _DIBDRV_freetype_blit_4           (DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
+-void _DIBDRV_freetype_blit_1           (DIBDRVPHYSDEV *dib, int x, int y, FT_Bitmap *bmp);
++void _DIBDRV_freetype_blit_8888        (DIBDRVPHYSDEV *dib, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
++void _DIBDRV_freetype_blit_32_RGB      (DIBDRVPHYSDEV *dib, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
++void _DIBDRV_freetype_blit_32_BITFIELDS(DIBDRVPHYSDEV *dib, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
++void _DIBDRV_freetype_blit_24          (DIBDRVPHYSDEV *dib, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
++void _DIBDRV_freetype_blit_16_RGB      (DIBDRVPHYSDEV *dib, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
++void _DIBDRV_freetype_blit_16_BITFIELDS(DIBDRVPHYSDEV *dib, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
++void _DIBDRV_freetype_blit_8           (DIBDRVPHYSDEV *dib, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
++void _DIBDRV_freetype_blit_4           (DIBDRVPHYSDEV *dib, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
++void _DIBDRV_freetype_blit_1           (DIBDRVPHYSDEV *dib, int x, int y, RECT *clipRec, FT_Bitmap *bmp);
+ 
+ DIBDRV_PRIMITIVE_FUNCS DIBDRV_funcs_DIB32_RGB =
+ {
+diff --git a/dlls/winedib.drv/primitives_bitblt.c b/dlls/winedib.drv/primitives_bitblt.c
+index 7540dad..7feeb49 100644
+--- a/dlls/winedib.drv/primitives_bitblt.c
++++ b/dlls/winedib.drv/primitives_bitblt.c
+@@ -216,7 +216,7 @@ BOOL _DIBDRV_AlphaBlend_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+             PemultiplyLine(strBuf, widthDst, constAlpha);
+             
+             /* blends source on dest */
+-            BlendLine(dBuf, sBuf, widthDst);
++            BlendLine(dBuf, strBuf, widthDst);
+             
+             /* puts dest line back */
+             dstBmp->funcs->PutLine(dstBmp, yd, xDst, widthDst, dBuf);
+@@ -391,6 +391,10 @@ BOOL _DIBDRV_BitBlt_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+     useSrc = (((rop >> 2) & 0x330000) != (rop & 0x330000));
+     useDst = (((rop >> 1) & 0x550000) != (rop & 0x550000));
+     
++    /* sanity check -- MSN messenger crashes without */
++    if(useSrc && !physDevSrc)
++        return FALSE;
++    
+     /* gets source, dest and pattern bitmaps, if available */
+     if(usePat && physDevDst->isBrushBitmap)
+         patBmp = &physDevDst->brushBmpCache;
+@@ -501,8 +505,8 @@ BOOL _DIBDRV_BitBlt_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                   {
+                       srcBmp->funcs->GetLine(srcBmp, ys, xSrc, width, dBuf);
+                       patBmp->funcs->GetLine(patBmp, ys%patBmp->height, 0, width, pBuf);
+-                      wDstPnt = sBuf;
+-                      wSrcPnt = sBuf;
++                      wDstPnt = dBuf;
++                      wSrcPnt = dBuf;
+                       wPatPnt = pBuf;
+                       for(i = width; i > 0 ; i--)
+                       {
+@@ -521,8 +525,8 @@ BOOL _DIBDRV_BitBlt_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                   for(ys = ySrc, yd = yDst; ys < ySrc+height; ys++, yd++)
+                   {
+                       srcBmp->funcs->GetLine(srcBmp, ys, xSrc, width, dBuf);
+-                      wDstPnt = sBuf;
+-                      wSrcPnt = sBuf;
++                      wDstPnt = dBuf;
++                      wSrcPnt = dBuf;
+                       for(i = width; i > 0 ; i--)
+                       {
+                           *wDstPnt = _DIBDRV_ROP3(patColor, *wSrcPnt++, 0, rop);
+@@ -538,9 +542,9 @@ BOOL _DIBDRV_BitBlt_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                       goto error;
+                   for(ys = ySrc, yd = yDst; ys < ySrc+height; ys++, yd++)
+                   {
+-                      dstBmp->funcs->GetLine(srcBmp, ys, xDst, width, dBuf);
++                      dstBmp->funcs->GetLine(dstBmp, ys, xDst, width, dBuf);
+                       patBmp->funcs->GetLine(patBmp, ys%patBmp->height, 0, width, pBuf);
+-                      wDstPnt = sBuf;
++                      wDstPnt = dBuf;
+                       wPatPnt = pBuf;
+                       for(i = width; i > 0 ; i--)
+                       {
+@@ -558,8 +562,8 @@ BOOL _DIBDRV_BitBlt_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+                       MAYBE(TRACE("BitBlt use: dst\n"));
+                   for(ys = ySrc, yd = yDst; ys < ySrc+height; ys++, yd++)
+                   {
+-                      dstBmp->funcs->GetLine(srcBmp, ys, xDst, width, dBuf);
+-                      wDstPnt = sBuf;
++                      dstBmp->funcs->GetLine(dstBmp, ys, xDst, width, dBuf);
++                      wDstPnt = dBuf;
+                       for(i = width; i > 0 ; i--)
+                       {
+                           *wDstPnt = _DIBDRV_ROP3(patColor, 0, *wDstPnt, rop);
+@@ -638,6 +642,10 @@ BOOL _DIBDRV_StretchBlt_generic(DIBDRVPHYSDEV *physDevDst, INT xDst, INT yDst,
+     useSrc = (((rop >> 2) & 0x330000) != (rop & 0x330000));
+     useDst = (((rop >> 1) & 0x550000) != (rop & 0x550000));
+     
++    /* sanity check -- MSN messenger crashes without */
++    if(useSrc && !physDevSrc)
++        return FALSE;
++    
+     /* gets source, dest and pattern bitmaps, if available */
+     if(usePat && physDevDst->isBrushBitmap)
+         patBmp = &physDevDst->brushBmpCache;
+diff --git a/dlls/winedib.drv/primitives_convert.c b/dlls/winedib.drv/primitives_convert.c
+index 800e3fd..f8f87ce 100644
+--- a/dlls/winedib.drv/primitives_convert.c
++++ b/dlls/winedib.drv/primitives_convert.c
+@@ -292,7 +292,7 @@ BOOL _DIBDRV_GetLine1(const DIBDRVBITMAP *bmp, INT line, INT startx, int width,
+ 
+     src = ((BYTE *)bmp->bits + line * bmp->stride + (startx >> 3));
+     /* get first partial byte, if any */
+-    startx = (8 - (startx & 0x03)) & 0x03;
++    startx = (8 - (startx & 0x07)) & 0x07;
+     width -= startx;
+     if(startx)
+     {
+@@ -322,7 +322,7 @@ BOOL _DIBDRV_GetLine1(const DIBDRVBITMAP *bmp, INT line, INT startx, int width,
+     }
+     
+     /* last partial byte, if any */
+-    if(width)
++    if(width > 0)
+     {
+         b = *src;
+         while(width--)
+@@ -398,13 +398,17 @@ BOOL _DIBDRV_PutLine16_BITFIELDS(const DIBDRVBITMAP *bmp, INT line, INT startx,
+     DWORD *dwBuf = (DWORD *)buf;
+     WORD *dst = (WORD *)((BYTE *)bmp->bits + line * bmp->stride + 2 * startx);
+     DWORD c;
++
++    BYTE bShift =  8 - bmp->blueLen;
++    BYTE gShift = 16 - bmp->greenLen;
++    BYTE rShift = 24 - bmp->redLen;
+     for(; width; width--)
+     {
+         c = *dwBuf++;
+         *dst++ =
+-            ((( c & 0x000000ff)        << bmp->blueShift)  & bmp->blueMask) |
+-            ((((c & 0x0000ff00) >>  8) << bmp->greenShift) & bmp->greenMask) |
+-            ((((c & 0x00ff0000) >> 16) << bmp->redShift)   & bmp->redMask);
++            ((((c & 0x000000ff) >> bShift) << bmp->blueShift)  & bmp->blueMask) |
++            ((((c & 0x0000ff00) >> gShift) << bmp->greenShift) & bmp->greenMask) |
++            ((((c & 0x00ff0000) >> rShift) << bmp->redShift)   & bmp->redMask);
+     }
+     return TRUE;
+ }
+@@ -480,7 +484,7 @@ BOOL _DIBDRV_PutLine4(const DIBDRVBITMAP *bmp, INT line, INT startx, int width,
+     }
+     
+     /* last nibble, if any */
+-    if(width)
++    if(width > 0)
+     {
+         c = *dwBuf;
+         
+@@ -500,14 +504,14 @@ BOOL _DIBDRV_PutLine1(const DIBDRVBITMAP *bmp, INT line, INT startx, int width,
+     BYTE b, mask;
+     char i;
+     DWORD c;
+-    
++
+     /* get foreground color */
+     DWORD fore = *((DWORD *)bmp->colorTable + 1) & 0x00ffffff;
+     
+     /* put first partial byte, if any */
+-    startx &= 0x03;
++    startx &= 0x07;
+     mask = 0x80 >> startx;
+-    startx = (8 - startx) & 0x03;
++    startx = (8 - startx) & 0x07;
+     if(startx)
+     {
+         width -= startx;
+@@ -540,7 +544,7 @@ BOOL _DIBDRV_PutLine1(const DIBDRVBITMAP *bmp, INT line, INT startx, int width,
+     }
+     
+     /* last partial byte, if any */
+-    if(width)
++    if(width > 0)
+     {
+         b = *dst;
+         mask = 0x80;
+diff --git a/dlls/winedib.drv/primitives_font.c b/dlls/winedib.drv/primitives_font.c
+index dd1d64b..e604a39 100644
+--- a/dlls/winedib.drv/primitives_font.c
++++ b/dlls/winedib.drv/primitives_font.c
+@@ -27,7 +27,7 @@ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+ 
+ /* ------------------------------------------------------------*/
+ /*               FREETYPE FONT BITMAP BLITTING                 */
+-void _DIBDRV_freetype_blit_8888(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp)
++void _DIBDRV_freetype_blit_8888(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp)
+ {
+     /* FIXME : MUST BE OPTIMIZED !!! */
+     
+@@ -35,13 +35,20 @@ void _DIBDRV_freetype_blit_8888(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap
+     int bmpX, bmpY;
+     BYTE *buf;
+     int dibX, dibY;
+-    int DIBX, DIBY;
+-    DWORD c;
++    int xMin, xMax, yMin, yMax;
+     DWORD *ptr;
++#ifdef DIBDRV_ANTIALIASED_FONTS        
++    DWORD c;
++    BYTE r, g, b, negColor;
++#else
++    DWORD c = dib->funcs->ColorToPixel(dib, physDev->textColor);
++#endif
+ 
+-    /* gets DIB limits */
+-    DIBX = dib->width;
+-    DIBY = dib->height;
++    /* gets clip limits */
++    xMin = clipRec->left;
++    yMin = clipRec->top;
++    xMax = clipRec->right;
++    yMax = clipRec->bottom;
+ 
+     /* loop for every pixel in bitmap */
+     buf = bmp->buffer;
+@@ -50,9 +57,21 @@ void _DIBDRV_freetype_blit_8888(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap
+         ptr = (DWORD *)((BYTE *)dib->bits + (dibY * dib->stride) + x * 4);
+         for(bmpX = 0, dibX = x; bmpX < bmp->width; bmpX++, dibX++)
+         {
+-            if(dibX < DIBX && dibY < DIBY && dibX > 0 && dibY > 0 && *buf)
++            if(dibX < xMax && dibY < yMax && dibX >= xMin && dibY >= yMin && *buf)
+             {
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+                 c = physDev->textColorTable[*buf];
++                if(*buf < 255)
++                {
++                    negColor = 255 - *buf;
++                    r = (*ptr >> 16) & 0xff;
++                    g = (*ptr >>  8) & 0xff;
++                    b = *ptr         & 0xff;
++                    c += MulDiv(r, 255 - *buf, 255) << 16 |
++                         MulDiv(g, 255 - *buf, 255) <<  8 |
++                         MulDiv(r, 255 - *buf, 255);
++                }
++#endif
+                 *ptr = c;
+             }
+             buf++;
+@@ -61,7 +80,7 @@ void _DIBDRV_freetype_blit_8888(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap
+     }
+ }
+ 
+-void _DIBDRV_freetype_blit_32_RGB(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp)
++void _DIBDRV_freetype_blit_32_RGB(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp)
+ {
+     /* FIXME : MUST BE OPTIMIZED !!! */
+     
+@@ -69,30 +88,52 @@ void _DIBDRV_freetype_blit_32_RGB(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitma
+     int bmpX, bmpY;
+     BYTE *buf;
+     int dibX, dibY;
+-    int DIBX, DIBY;
++    int xMin, xMax, yMin, yMax;
++    DWORD *ptr;
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+     DWORD c;
++    BYTE r, g, b, negColor;
++#else
++    DWORD c = dib->funcs->ColorToPixel(dib, physDev->textColor);
++#endif
+ 
+     /* gets DIB limits */
+-    DIBX = dib->width;
+-    DIBY = dib->height;
++    xMin = clipRec->left;
++    yMin = clipRec->top;
++    xMax = clipRec->right;
++    yMax = clipRec->bottom;
+ 
+     /* loop for every pixel in bitmap */
+     buf = bmp->buffer;
+     for(bmpY = 0, dibY = y; bmpY < bmp->rows; bmpY++, dibY++)
+     {
++        ptr = (DWORD *)((BYTE *)dib->bits + (dibY * dib->stride) + x * 4);
+         for(bmpX = 0, dibX = x; bmpX < bmp->width; bmpX++, dibX++)
+         {
+-            if(dibX < DIBX && dibY < DIBY && dibX > 0 && dibY > 0 && *buf)
++            if(dibX < xMax && dibY < yMax && dibX >= xMin && dibY >= yMin && *buf)
+             {
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+                 c = physDev->textColorTable[*buf];
+-                dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
++                if(*buf < 255)
++                {
++                    negColor = 255 - *buf;
++                    r = (*ptr >> 16) & 0xff;
++                    g = (*ptr >>  8) & 0xff;
++                    b = *ptr         & 0xff;
++                    c += MulDiv(r, 255 - *buf, 255) << 16 |
++                         MulDiv(g, 255 - *buf, 255) <<  8 |
++                         MulDiv(r, 255 - *buf, 255);
++                }
++#endif
++                *ptr = c;
+             }
+             buf++;
++            ptr++;
+         }
+     }
+ }
+ 
+-void _DIBDRV_freetype_blit_32_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp)
++void _DIBDRV_freetype_blit_32_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp)
+ {
+     /* FIXME : MUST BE OPTIMIZED !!! */
+     
+@@ -100,12 +141,20 @@ void _DIBDRV_freetype_blit_32_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, FT
+     int bmpX, bmpY;
+     BYTE *buf;
+     int dibX, dibY;
+-    int DIBX, DIBY;
++    int xMin, xMax, yMin, yMax;
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+     DWORD c;
++    COLORREF pix;
++    BYTE r, g, b, negColor;
++#else
++    DWORD c = dib->funcs->ColorToPixel(dib, physDev->textColor);
++#endif
+ 
+     /* gets DIB limits */
+-    DIBX = dib->width;
+-    DIBY = dib->height;
++    xMin = clipRec->left;
++    yMin = clipRec->top;
++    xMax = clipRec->right;
++    yMax = clipRec->bottom;
+ 
+     /* loop for every pixel in bitmap */
+     buf = bmp->buffer;
+@@ -113,9 +162,22 @@ void _DIBDRV_freetype_blit_32_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, FT
+     {
+         for(bmpX = 0, dibX = x; bmpX < bmp->width; bmpX++, dibX++)
+         {
+-            if(dibX < DIBX && dibY < DIBY && dibX > 0 && dibY > 0 && *buf)
++            if(dibX < xMax && dibY < yMax && dibX >= xMin && dibY >= yMin && *buf)
+             {
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+                 c = physDev->textColorTable[*buf];
++                if(*buf < 255)
++                {
++                    negColor = 255 - *buf;
++                    pix = dib->funcs->GetPixel(dib, dibX, dibY);
++                    r = pix         & 0xff;
++                    g = (pix >>  8) & 0xff;
++                    b = (pix >> 16) & 0xff;
++                    c += MulDiv(r, 255 - *buf, 255) << 16 |
++                         MulDiv(g, 255 - *buf, 255) <<  8 |
++                         MulDiv(r, 255 - *buf, 255);
++                }
++#endif
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+             }
+             buf++;
+@@ -123,7 +185,7 @@ void _DIBDRV_freetype_blit_32_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, FT
+     }
+ }
+ 
+-void _DIBDRV_freetype_blit_24(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp)
++void _DIBDRV_freetype_blit_24(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp)
+ {
+     /* FIXME : MUST BE OPTIMIZED !!! */
+     
+@@ -131,12 +193,20 @@ void _DIBDRV_freetype_blit_24(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *b
+     int bmpX, bmpY;
+     BYTE *buf;
+     int dibX, dibY;
+-    int DIBX, DIBY;
++    int xMin, xMax, yMin, yMax;
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+     DWORD c;
++    COLORREF pix;
++    BYTE r, g, b, negColor;
++#else
++    DWORD c = dib->funcs->ColorToPixel(dib, physDev->textColor);
++#endif
+ 
+     /* gets DIB limits */
+-    DIBX = dib->width;
+-    DIBY = dib->height;
++    xMin = clipRec->left;
++    yMin = clipRec->top;
++    xMax = clipRec->right;
++    yMax = clipRec->bottom;
+ 
+     /* loop for every pixel in bitmap */
+     buf = bmp->buffer;
+@@ -144,9 +214,22 @@ void _DIBDRV_freetype_blit_24(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *b
+     {
+         for(bmpX = 0, dibX = x; bmpX < bmp->width; bmpX++, dibX++)
+         {
+-            if(dibX < DIBX && dibY < DIBY && dibX > 0 && dibY > 0 && *buf)
++            if(dibX < xMax && dibY < yMax && dibX >= xMin && dibY >= yMin && *buf)
+             {
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+                 c = physDev->textColorTable[*buf];
++                if(*buf < 255)
++                {
++                    negColor = 255 - *buf;
++                    pix = dib->funcs->GetPixel(dib, dibX, dibY);
++                    r = pix         & 0xff;
++                    g = (pix >>  8) & 0xff;
++                    b = (pix >> 16) & 0xff;
++                    c += MulDiv(r, 255 - *buf, 255) << 16 |
++                         MulDiv(g, 255 - *buf, 255) <<  8 |
++                         MulDiv(r, 255 - *buf, 255);
++                }
++#endif
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+             }
+             buf++;
+@@ -154,7 +237,7 @@ void _DIBDRV_freetype_blit_24(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *b
+     }
+ }
+ 
+-void _DIBDRV_freetype_blit_16_RGB(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp)
++void _DIBDRV_freetype_blit_16_RGB(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp)
+ {
+     /* FIXME : MUST BE OPTIMIZED !!! */
+     
+@@ -162,12 +245,20 @@ void _DIBDRV_freetype_blit_16_RGB(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitma
+     int bmpX, bmpY;
+     BYTE *buf;
+     int dibX, dibY;
+-    int DIBX, DIBY;
++    int xMin, xMax, yMin, yMax;
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+     DWORD c;
++    COLORREF pix;
++    BYTE r, g, b, negColor;
++#else
++    DWORD c = dib->funcs->ColorToPixel(dib, physDev->textColor);
++#endif
+ 
+     /* gets DIB limits */
+-    DIBX = dib->width;
+-    DIBY = dib->height;
++    xMin = clipRec->left;
++    yMin = clipRec->top;
++    xMax = clipRec->right;
++    yMax = clipRec->bottom;
+ 
+     /* loop for every pixel in bitmap */
+     buf = bmp->buffer;
+@@ -175,9 +266,22 @@ void _DIBDRV_freetype_blit_16_RGB(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitma
+     {
+         for(bmpX = 0, dibX = x; bmpX < bmp->width; bmpX++, dibX++)
+         {
+-            if(dibX < DIBX && dibY < DIBY && dibX > 0 && dibY > 0 && *buf)
++            if(dibX < xMax && dibY < yMax && dibX >= xMin && dibY >= yMin && *buf)
+             {
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+                 c = physDev->textColorTable[*buf];
++                if(*buf < 255)
++                {
++                    negColor = 255 - *buf;
++                    pix = dib->funcs->GetPixel(dib, dibX, dibY);
++                    r = pix         & 0xff;
++                    g = (pix >>  8) & 0xff;
++                    b = (pix >> 16) & 0xff;
++                    c += MulDiv(r, 255 - *buf, 255) << 16 |
++                         MulDiv(g, 255 - *buf, 255) <<  8 |
++                         MulDiv(r, 255 - *buf, 255);
++                }
++#endif
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+             }
+             buf++;
+@@ -185,7 +289,7 @@ void _DIBDRV_freetype_blit_16_RGB(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitma
+     }
+ }
+ 
+-void _DIBDRV_freetype_blit_16_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp)
++void _DIBDRV_freetype_blit_16_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp)
+ {
+     /* FIXME : MUST BE OPTIMIZED !!! */
+     
+@@ -193,12 +297,20 @@ void _DIBDRV_freetype_blit_16_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, FT
+     int bmpX, bmpY;
+     BYTE *buf;
+     int dibX, dibY;
+-    int DIBX, DIBY;
++    int xMin, xMax, yMin, yMax;
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+     DWORD c;
++    COLORREF pix;
++    BYTE r, g, b, negColor;
++#else
++    DWORD c = dib->funcs->ColorToPixel(dib, physDev->textColor);
++#endif
+ 
+     /* gets DIB limits */
+-    DIBX = dib->width;
+-    DIBY = dib->height;
++    xMin = clipRec->left;
++    yMin = clipRec->top;
++    xMax = clipRec->right;
++    yMax = clipRec->bottom;
+ 
+     /* loop for every pixel in bitmap */
+     buf = bmp->buffer;
+@@ -206,9 +318,22 @@ void _DIBDRV_freetype_blit_16_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, FT
+     {
+         for(bmpX = 0, dibX = x; bmpX < bmp->width; bmpX++, dibX++)
+         {
+-            if(dibX < DIBX && dibY < DIBY && dibX > 0 && dibY > 0 && *buf)
++            if(dibX < xMax && dibY < yMax && dibX >= xMin && dibY >= yMin && *buf)
+             {
++#ifdef DIBDRV_ANTIALIASED_FONTS        
+                 c = physDev->textColorTable[*buf];
++                if(*buf < 255)
++                {
++                    negColor = 255 - *buf;
++                    pix = dib->funcs->GetPixel(dib, dibX, dibY);
++                    r = pix         & 0xff;
++                    g = (pix >>  8) & 0xff;
++                    b = (pix >> 16) & 0xff;
++                    c += MulDiv(r, 255 - *buf, 255) << 16 |
++                         MulDiv(g, 255 - *buf, 255) <<  8 |
++                         MulDiv(r, 255 - *buf, 255);
++                }
++#endif
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+             }
+             buf++;
+@@ -216,7 +341,7 @@ void _DIBDRV_freetype_blit_16_BITFIELDS(DIBDRVPHYSDEV *physDev, int x, int y, FT
+     }
+ }
+ 
+-void _DIBDRV_freetype_blit_8(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp)
++void _DIBDRV_freetype_blit_8(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp)
+ {
+     /* FIXME : MUST BE OPTIMIZED !!! */
+     
+@@ -224,12 +349,14 @@ void _DIBDRV_freetype_blit_8(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bm
+     int bmpX, bmpY;
+     BYTE *buf;
+     int dibX, dibY;
+-    int DIBX, DIBY;
+-    DWORD c;
++    int xMin, xMax, yMin, yMax;
++    DWORD c = physDev->textColor;
+ 
+     /* gets DIB limits */
+-    DIBX = dib->width;
+-    DIBY = dib->height;
++    xMin = clipRec->left;
++    yMin = clipRec->top;
++    xMax = clipRec->right;
++    yMax = clipRec->bottom;
+ 
+     /* loop for every pixel in bitmap */
+     buf = bmp->buffer;
+@@ -237,17 +364,14 @@ void _DIBDRV_freetype_blit_8(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bm
+     {
+         for(bmpX = 0, dibX = x; bmpX < bmp->width; bmpX++, dibX++)
+         {
+-            if(dibX < DIBX && dibY < DIBY && dibX > 0 && dibY > 0 && *buf)
+-            {
+-                c = physDev->textColorTable[*buf];
++            if(dibX < xMax && dibY < yMax && dibX >= xMin && dibY >= yMin && *buf)
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+-            }
+             buf++;
+         }
+     }
+ }
+ 
+-void _DIBDRV_freetype_blit_4(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp)
++void _DIBDRV_freetype_blit_4(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp)
+ {
+     /* FIXME : MUST BE OPTIMIZED !!! */
+     
+@@ -255,12 +379,14 @@ void _DIBDRV_freetype_blit_4(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bm
+     int bmpX, bmpY;
+     BYTE *buf;
+     int dibX, dibY;
+-    int DIBX, DIBY;
+-    DWORD c;
++    int xMin, xMax, yMin, yMax;
++    DWORD c = physDev->textColor;
+ 
+     /* gets DIB limits */
+-    DIBX = dib->width;
+-    DIBY = dib->height;
++    xMin = clipRec->left;
++    yMin = clipRec->top;
++    xMax = clipRec->right;
++    yMax = clipRec->bottom;
+ 
+     /* loop for every pixel in bitmap */
+     buf = bmp->buffer;
+@@ -268,17 +394,14 @@ void _DIBDRV_freetype_blit_4(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bm
+     {
+         for(bmpX = 0, dibX = x; bmpX < bmp->width; bmpX++, dibX++)
+         {
+-            if(dibX < DIBX && dibY < DIBY && dibX > 0 && dibY > 0 && *buf)
+-            {
+-                c = physDev->textColorTable[*buf];
++            if(dibX < xMax && dibY < yMax && dibX >= xMin && dibY >= yMin && *buf)
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+-            }
+             buf++;
+         }
+     }
+ }
+ 
+-void _DIBDRV_freetype_blit_1(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bmp)
++void _DIBDRV_freetype_blit_1(DIBDRVPHYSDEV *physDev, int x, int y, RECT *clipRec, FT_Bitmap *bmp)
+ {
+     /* FIXME : MUST BE OPTIMIZED !!! */
+     
+@@ -286,12 +409,14 @@ void _DIBDRV_freetype_blit_1(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bm
+     int bmpX, bmpY;
+     BYTE *buf;
+     int dibX, dibY;
+-    int DIBX, DIBY;
+-    DWORD c;
++    int xMin, xMax, yMin, yMax;
++    DWORD c = physDev->textColor;
+ 
+     /* gets DIB limits */
+-    DIBX = dib->width;
+-    DIBY = dib->height;
++    xMin = clipRec->left;
++    yMin = clipRec->top;
++    xMax = clipRec->right;
++    yMax = clipRec->bottom;
+ 
+     /* loop for every pixel in bitmap */
+     buf = bmp->buffer;
+@@ -299,11 +424,8 @@ void _DIBDRV_freetype_blit_1(DIBDRVPHYSDEV *physDev, int x, int y, FT_Bitmap *bm
+     {
+         for(bmpX = 0, dibX = x; bmpX < bmp->width; bmpX++, dibX++)
+         {
+-            if(dibX < DIBX && dibY < DIBY && dibX > 0 && dibY > 0 && *buf)
+-            {
+-                c = physDev->textColorTable[*buf];
++            if(dibX < xMax && dibY < yMax && dibX >= xMin && dibY >= yMin && *buf)
+                 dib->funcs->SetPixel(dib, dibX, dibY, 0, c);
+-            }
+             buf++;
+         }
+     }
+diff --git a/dlls/winedib.drv/primitives_rop3.c b/dlls/winedib.drv/primitives_rop3.c
+index 398258b..05ce494 100644
+--- a/dlls/winedib.drv/primitives_rop3.c
++++ b/dlls/winedib.drv/primitives_rop3.c
+@@ -413,7 +413,7 @@ DWORD _DIBDRV_ROP3(DWORD p, DWORD s, DWORD d, BYTE rop)
+             return (0x123456) & 0x00ffffff;
+             
+         case 0x85:   /* PDSPnoaxn                */
+-            return (0x123456) & 0x00ffffff;
++            return (~(p ^ (d & (s | ~p)))) & 0x00ffffff;
+             
+         case 0x86:   /* DSPDSoaxx                */
+             return (0x123456) & 0x00ffffff;
+diff --git a/dlls/winedib.drv/text.c b/dlls/winedib.drv/text.c
+index e2cea0c..0ae3575 100644
+--- a/dlls/winedib.drv/text.c
++++ b/dlls/winedib.drv/text.c
+@@ -25,19 +25,6 @@
+ 
+ WINE_DEFAULT_DEBUG_CHANNEL(dibdrv);
+ 
+-/* converts font sizes from Word space to Device space */
+-static void FontSizes_ws2ds(DIBDRVPHYSDEV *physDev, int *w, int *h)
+-{
+-    POINT pts[2];
+-    pts[0].x = 0;
+-    pts[0].y = 0;
+-    pts[1].x = abs(*w);
+-    pts[1].y = abs(*h);
+-    LPtoDP(physDev->hdc, pts, 2);
+-    *w = pts[1].x - pts[0].x;
+-    *h = pts[1].y - pts[0].y;
+-}
+-
+ /***********************************************************************
+  *           DIBDRV_ExtTextOut
+  */
+@@ -57,12 +44,17 @@ BOOL DIBDRV_ExtTextOut( DIBDRVPHYSDEV *physDev, INT x, INT y, UINT flags,
+     LPCWSTR wstrPnt;
+     
+     FT_Glyph glyph;
+-    FT_BitmapGlyph bitmap;
++    FT_BitmapGlyph bitmapGlyph;
++    FT_Bitmap *bitmap, bitmap8;
+     double cosEsc, sinEsc;
+     FT_Matrix matrix;
+     FT_Vector start; 
+     int dx, dy;
+     
++    RECT *r;
++    int iRec;
++    RECT clipRec;
++    DWORD backPixel; 
+     
+     MAYBE(TRACE("physDev:%p, x:%d, y:%d, flags:%x, lprect:%p, wstr:%s, count:%d, lpDx:%p\n",
+           physDev, x, y, flags, lprect, debugstr_w(wstr), count, lpDx));
+@@ -94,114 +86,155 @@ BOOL DIBDRV_ExtTextOut( DIBDRVPHYSDEV *physDev, INT x, INT y, UINT flags,
+             HeapFree(GetProcessHeap(), 0, str);
+         }
+ 
++        /* gets background pixel value for opaque text */
++        backPixel = physDev->backgroundColor;
++    
+         /* gets font data, etc */
+         GetObjectW(GetCurrentObject(physDev->hdc, OBJ_FONT), sizeof(lf), &lf);
+         
+         /* convert sizes to device space */
+-        w = lf.lfWidth; h = lf.lfHeight;
+-        FontSizes_ws2ds(physDev, &w, &h);
+-        
+-        /* if opaque, paint the font background */
+-/*
+-        if(flags | ETO_OPAQUE)
+-        {
+-            int iLine;
+-            for(iLine = lprect->top; iLine < lprect->bottom; iLine++)
+-                physDev->physBitmap.funcs->SolidHLine(&physDev->physBitmap,
+-                    lprect->left, lprect->right-1, iLine, 0, physDev->backgroundColor);
+-        }
+-*/
+-        /* sets character pixel size */
+-        error = pFT_Set_Pixel_Sizes(
+-            face,
+-            MulDiv(w, 96, DIBDRV_GetDeviceCaps(physDev, LOGPIXELSX)), 
+-            MulDiv(h, 96, DIBDRV_GetDeviceCaps(physDev, LOGPIXELSY))
+-        );
+-        if(error)
+-            ERR("Couldn't set char size to (%d,%d)\n", lf.lfWidth, lf.lfHeight);
+-
+-        /* transformation matrix and vector */
+-        start.x = 0;
+-        start.y = 0;
+-        if(lf.lfEscapement != 0)
++        w = abs(lf.lfWidth); h = abs(lf.lfHeight);
++        _DIBDRV_Sizes_ws2ds(physDev, &w, &h);
++ 
++        /* loop on all clip region rectangles */
++        r = physDev->regionRects;
++        for(iRec = 0; iRec < physDev->regionRectCount; iRec++, r++)
+         {
+-            cosEsc = cos(lf.lfEscapement * M_PI / 1800);
+-            sinEsc = sin(lf.lfEscapement * M_PI / 1800);
+-        }
+-        else
+-        {
+-            cosEsc = 1;
+-            sinEsc = 0;
+-        }
+-        matrix.xx = (FT_Fixed)( cosEsc * 0x10000L );
+-        matrix.xy = (FT_Fixed)(-sinEsc * 0x10000L );
+-        matrix.yx = (FT_Fixed)( sinEsc * 0x10000L );
+-        matrix.yy = (FT_Fixed)( cosEsc * 0x10000L );
+-     
+-        /* outputs characters one by one */
+-        wstrPnt = wstr;
+-        for ( n = 0; n < count; n++ )
+-        {
+-            /* retrieve glyph index from character code */
+-            if(flags & ETO_GLYPH_INDEX)
+-                glyph_index = *wstrPnt++;
++            /* if clipped on text rect, intersect with current region */
++            if(flags & ETO_CLIPPED)
++            {
++                if(!_DIBDRV_IntersectRect(&clipRec, r, lprect))
++                    continue;
++            }
+             else
+-                glyph_index = pFT_Get_Char_Index( face, *wstrPnt++);
++                memcpy(&clipRec, r, sizeof(RECT));
++                
++            /* if opaque, paint the font background */
++            if(flags & ETO_OPAQUE)
++            {
++                int iLine;
++                RECT tr;
++                
++                /* clips text rectangle */
++                if(_DIBDRV_IntersectRect(&tr, r, lprect))
++                {
++                    /* paints the backgound */
++                    for(iLine = tr.top; iLine < tr.bottom; iLine++)
++                        physDev->physBitmap.funcs->SolidHLine(&physDev->physBitmap,
++                            tr.left, tr.right-1, iLine, 0, backPixel);
++                }
++            }
+ 
+-            /* load glyph image into the slot (erase previous one) */
+-            error = pFT_Load_Glyph( face, glyph_index, FT_LOAD_DEFAULT );
++            /* sets character pixel size */
++            error = pFT_Set_Pixel_Sizes(face, w, h);
+             if(error)
++                ONCE(ERR("Couldn't set char size to (%d,%d), code %d\n", lf.lfWidth, lf.lfHeight, error));
++
++            /* transformation matrix and vector */
++            start.x = 0;
++            start.y = 0;
++            if(lf.lfEscapement != 0)
+             {
+-                ERR("Couldn't load glyph at index %d\n", glyph_index);
+-                /* ignore errors */
+-                continue;
++                cosEsc = cos(lf.lfEscapement * M_PI / 1800);
++                sinEsc = sin(lf.lfEscapement * M_PI / 1800);
+             }
+-            error = pFT_Get_Glyph(face->glyph, &glyph);
+-            if ( error )
++            else
+             {
+-                FIXME("Couldn't get glyph\n");
+-                continue; 
++                cosEsc = 1;
++                sinEsc = 0;
+             }
+-     
+-            /* apply transformation to glyph */
+-            if ( glyph->format != FT_GLYPH_FORMAT_BITMAP )
+-                pFT_Glyph_Transform(glyph, &matrix, &start ); 
+-                    
+-            /* gets advance BEFORE transforming... */
+-            dx = glyph->advance.x;
+-            dy = glyph->advance.y;
+-             
+-            /* convert to an anti-aliased bitmap, if needed */
+-            if ( glyph->format != FT_GLYPH_FORMAT_BITMAP )
++            matrix.xx = (FT_Fixed)( cosEsc * 0x10000L );
++            matrix.xy = (FT_Fixed)(-sinEsc * 0x10000L );
++            matrix.yx = (FT_Fixed)( sinEsc * 0x10000L );
++            matrix.yy = (FT_Fixed)( cosEsc * 0x10000L );
++         
++            /* outputs characters one by one */
++            wstrPnt = wstr;
++            for ( n = 0; n < count; n++ )
+             {
+-                error = pFT_Glyph_To_Bitmap(
+-                    &glyph,
+-                    FT_RENDER_MODE_NORMAL,
+-                    0, /* no additional translation */
+-                    1  /* destroy copy in "image" */
+-                );  
+-
+-                /* ignore errors */
+-                if ( error )
++                /* retrieve glyph index from character code */
++                if(flags & ETO_GLYPH_INDEX)
++                    glyph_index = *wstrPnt++;
++                else
++                    glyph_index = pFT_Get_Char_Index( face, *wstrPnt++);
++
++                /* load glyph image into the slot (erase previous one) */
++                error = pFT_Load_Glyph( face, glyph_index, FT_LOAD_DEFAULT );
++                if(error)
+                 {
+-                    FIXME("Couldn't render glyph\n");
+-                    pFT_Done_Glyph(glyph);
++                    ERR("Couldn't load glyph at index %d\n", glyph_index);
++                    /* ignore errors */
+                     continue;
+                 }
+-            }
++                error = pFT_Get_Glyph(face->glyph, &glyph);
++                if ( error )
++                {
++                    FIXME("Couldn't get glyph\n");
++                    continue; 
++                }
++         
++                /* apply transformation to glyph */
++                if ( glyph->format != FT_GLYPH_FORMAT_BITMAP )
++                    pFT_Glyph_Transform(glyph, &matrix, &start ); 
++                        
++                /* gets advance BEFORE transforming... */
++                dx = glyph->advance.x;
++                dy = glyph->advance.y;
++                 
++                /* convert to an anti-aliased bitmap, if needed */
++                if ( glyph->format != FT_GLYPH_FORMAT_BITMAP )
++                {
++                    error = pFT_Glyph_To_Bitmap(
++                        &glyph,
++    #ifdef DIBDRV_ANTIALIASED_FONTS        
++                        physDev->physBitmap.bitCount > 8 ? FT_RENDER_MODE_NORMAL : FT_RENDER_MODE_MONO,
++    #else
++                        FT_RENDER_MODE_MONO,
++    #endif
++                        0, /* no additional translation */
++                        1  /* destroy copy in "image" */
++                    );  
++
++                    /* ignore errors */
++                    if ( error )
++                    {
++                        FIXME("Couldn't render glyph\n");
++                        pFT_Done_Glyph(glyph);
++                        continue;
++                    }
++                }
++                bitmapGlyph = (FT_BitmapGlyph)glyph;
++                
++                /* convert the bitmap in an 8bpp 1 byte aligned one if needed */
++                bitmap = &bitmapGlyph->bitmap;
++                if(bitmap->pixel_mode != FT_PIXEL_MODE_GRAY)
++                {
++                    pFT_Bitmap_New(&bitmap8);
++                    if(pFT_Bitmap_Convert(glyph->library, bitmap, &bitmap8, 1))
++                    {
++                        FIXME("Couldn't convert bitmap to 8 bit grayscale\n");
++                        pFT_Done_Glyph(glyph);
++                        continue;
++                    }
++                    bitmap = &bitmap8;
++                }
+ 
+-            /* now, draw to our target surface */
+-            bitmap = (FT_BitmapGlyph)glyph;
+-            physDev->physBitmap.funcs->FreetypeBlit(physDev, x+bitmap->left, y-bitmap->top, &bitmap->bitmap);
++                /* now, draw to our target surface */
++                physDev->physBitmap.funcs->FreetypeBlit(physDev, x+bitmapGlyph->left, y-bitmapGlyph->top, &clipRec, bitmap);
++                
++                /* frees converted bitmap, if any */
++                if(bitmap != &bitmapGlyph->bitmap)
++                    pFT_Bitmap_Done(glyph->library, bitmap);
+ 
+-            /* increment pen position */
+-            x += dx>>16;
+-            y -= dy>>16;
++                /* increment pen position */
++                x += dx>>16;
++                y -= dy>>16;
+ 
+-            pFT_Done_Glyph(glyph);
+-            
+-            res = TRUE;
+-        } 
++                pFT_Done_Glyph(glyph);
++                
++                res = TRUE;
++            }
++        } /* end region rects loop */
+     }
+     else
+     {

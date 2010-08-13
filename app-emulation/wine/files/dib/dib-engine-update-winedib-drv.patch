@@ -1,0 +1,18 @@
+dib engine: update winedib.drv Makefile.in to build on 1.1.41
+
+From: Massimo Del Fedele <max@veneto.com>
+
+
+---
+ dlls/winedib.drv/Makefile.in |    1 -
+ 1 files changed, 0 insertions(+), 1 deletions(-)
+
+diff --git a/dlls/winedib.drv/Makefile.in b/dlls/winedib.drv/Makefile.in
+index a29edf0..7544c0d 100644
+--- a/dlls/winedib.drv/Makefile.in
++++ b/dlls/winedib.drv/Makefile.in
+@@ -38,4 +38,3 @@ C_SRCS = \
+ 
+ @MAKE_DLL_RULES@
+ 
+-@DEPENDENCIES@  # everything below this line is overwritten by make depend
