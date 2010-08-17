@@ -66,6 +66,7 @@ IUSE="${IUSE_VIDEO_CARDS}
 
 RDEPEND="app-admin/eselect-opengl
 	dev-libs/expat
+	sys-libs/talloc
 	X? ( x11-libs/libX11
 		x11-libs/libXext
 		>=x11-libs/libXxf86vm-1.1
