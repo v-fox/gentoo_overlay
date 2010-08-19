@@ -55,6 +55,7 @@ IUSE="${IUSE_VIDEO_CARDS}
 	llvm
 	+kms
 	openvg
+	osmesa
 	pic
 	+motif
 	nptl
@@ -203,9 +204,13 @@ src_configure() {
 
 	myconf="${myconf} --with-driver=${DRIVER}"
 
-	if [[ $DRIVER = osmesa ]];then
+	if [[ $DRIVER = osmesa ]]; then
 		myconf="${myconf} --with-osmesa-bits=32"
-		#myconf="${myconf} --enable-gl-osmesa"
+	fi
+
+	if [[ $DRIVER != osmesa ]]; then
+		# build & use osmesa even with GL
+		use osmesa && myconf="${myconf} --enable-gl-osmesa"
 	fi
 
 	myconf="${myconf} $(use_enable egl)
