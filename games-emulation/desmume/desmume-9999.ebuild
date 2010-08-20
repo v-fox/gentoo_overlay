@@ -4,16 +4,16 @@
 
 EAPI="2"
 
-inherit eutils games
+inherit eutils games subversion autotools
 
-MY_P="${P/_p/-}"
 DESCRIPTION="Nintendo DS emulator"
 HOMEPAGE="http://desmume.org/"
-SRC_URI="mirror://sourceforge/desmume/${MY_P}.tar.gz"
-
+SRC_URI=""
+ESVN_REPO_URI="https://desmume.svn.sourceforge.net/svnroot/desmume/trunk/desmume"
+ESVN_PROJECT="desmume"
 LICENSE="GPL-2"
 SLOT="0"
-KEYWORDS="~amd64 ~ppc ~x86"
+KEYWORDS=""
 IUSE="openal gtk glade osmesa nls wifi wxwidgets"
 
 DEPEND="virtual/opengl
@@ -32,19 +32,22 @@ DEPEND="virtual/opengl
 	wifi? ( net-libs/libpcap )
 	wxwidgets? ( x11-libs/wxGTK )"
 RDEPEND="${DEPEND}"
-S="${WORKDIR}/${P/_p?/}"
 
 src_prepare() {
-	use wxwidgets && \
-		ewarn "wxwidgets support is broken and may not build"
 	use wifi && \
-		eerror "wifi support and configuration is broken and disabled for now"
+		eerror "wifi support is broken and may not work"
 	
 	if ! use gtk && $(use glade || use wxwidgets); then
 		einfo "glade or wxwidgets support was requested but not gtk"
 		einfo "both glade(libglade) and wxwidgets(wxGTK) depend on gtk"
 		einfo "it may be usefull to enable gtk support after all"
 	fi
+
+	eautoreconf
+
+	[ -e "${S}/po/Makefile.in.in" ] && \
+		eerror "apparently missing file issue has been fixed. please, remove this crutch" || \
+		cp -v "${FILESDIR}/Makefile.in.in" "${S}"/po/
 }
 
 src_configure() {
@@ -52,6 +55,7 @@ src_configure() {
 		$(use_enable openal) \
 		$(use_enable osmesa) \
 		$(use_enable nls) \
+		$(use_enable wifi) \
 		$(use_enable wxwidgets) \
 		|| die "egamesconf failed"
 }
@@ -63,6 +67,9 @@ src_install() {
 	fi
 	if ! use glade; then
 		[ -f "${D}/${GAMES_BINDIR}/desmume-glade" ] && rm "${D}/${GAMES_BINDIR}/desmume-glade"
+	fi
+	if ! use wxwidgets; then
+		[ -f "${D}/${GAMES_BINDIR}/wxdesmume" ] && rm "${D}/${GAMES_BINDIR}/wxdesmume"
 	fi
 	dodoc AUTHORS ChangeLog README README.LIN
 	prepgamesdirs

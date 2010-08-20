@@ -6,54 +6,33 @@ EAPI="2"
 
 inherit eutils games
 
-MY_P="${P/_p/-}"
+_MYRELEASE="1"
+
 DESCRIPTION="Nintendo DS emulator"
 HOMEPAGE="http://desmume.org/"
-SRC_URI="mirror://sourceforge/desmume/${MY_P}.tar.gz"
+SRC_URI="mirror://sourceforge/desmume/${P}-${_MYRELEASE}.tar.gz"
 
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~amd64 ~ppc ~x86"
-IUSE="openal gtk glade osmesa nls wifi wxwidgets"
+IUSE="agg glade gtk"
 
 DEPEND="virtual/opengl
 	sys-libs/zlib
 	dev-libs/zziplib
 	media-libs/libsdl[joystick]
-	x11-libs/agg
-	nls? ( virtual/libintl
-		sys-devel/gettext )
-	openal? ( media-libs/openal )
+	agg? ( x11-libs/agg )
 	gtk? ( >=x11-libs/gtk+-2.8.0
 		x11-libs/gtkglext )
 	glade? ( gnome-base/libglade
+		dev-util/intltool
+		sys-devel/gettext
 		x11-libs/gtkglext )
-	osmesa? ( media-libs/mesa[osmesa] )
-	wifi? ( net-libs/libpcap )
-	wxwidgets? ( x11-libs/wxGTK )"
+"
 RDEPEND="${DEPEND}"
-S="${WORKDIR}/${P/_p?/}"
-
-src_prepare() {
-	use wxwidgets && \
-		ewarn "wxwidgets support is broken and may not build"
-	use wifi && \
-		eerror "wifi support and configuration is broken and disabled for now"
-	
-	if ! use gtk && $(use glade || use wxwidgets); then
-		einfo "glade or wxwidgets support was requested but not gtk"
-		einfo "both glade(libglade) and wxwidgets(wxGTK) depend on gtk"
-		einfo "it may be usefull to enable gtk support after all"
-	fi
-}
 
 src_configure() {
-	egamesconf --datadir=/usr/share \
-		$(use_enable openal) \
-		$(use_enable osmesa) \
-		$(use_enable nls) \
-		$(use_enable wxwidgets) \
-		|| die "egamesconf failed"
+	egamesconf --datadir=/usr/share || die "egamesconf failed"
 }
 
 src_install() {
