@@ -5,5 +5,5 @@
 #
 # VIDEO OPTIONS
 #
-video               soft
+video               @VIDEO@
 yuvmode             yv12

@@ -6,30 +6,30 @@ readconfig                1
 #
 # CORE SEARCH PATH OPTIONS
 #
-rompath                   $HOME/.sdlmame/roms;@GAMES_SYSCONFDIR@/sdlmame/roms
-samplepath                $HOME/.sdlmame/samples;@GAMES_SYSCONFDIR@/sdlmame/samples
-artpath                   $HOME/.sdlmame/artwork;@GAMES_SYSCONFDIR@/sdlmame/artwork
-ctrlrpath                 $HOME/.sdlmame/ctrlr;@GAMES_SYSCONFDIR@/sdlmame/ctrlr
-inipath                   $HOME/.sdlmame;@GAMES_SYSCONFDIR@/sdlmame
-fontpath                  $HOME/.sdlmame;@GAMES_DATADIR@/sdlmame
+rompath                   $HOME/.@PN@:/roms;@GAMES_SYSCONFDIR@/@PN@:/roms
+samplepath                $HOME/.@PN@:/samples;@GAMES_SYSCONFDIR@/@PN@:/samples
+artpath                   $HOME/.@PN@:/artwork;@GAMES_SYSCONFDIR@/@PN@:/artwork
+ctrlrpath                 $HOME/.@PN@:/ctrlr;@GAMES_SYSCONFDIR@/@PN@:/ctrlr
+inipath                   $HOME/.@PN@:;@GAMES_SYSCONFDIR@/@PN@:
+fontpath                  $HOME/.@PN@:;@GAMES_DATADIR@/@PN@:
 
 #
 # CORE OUTPUT DIRECTORY OPTIONS
 #
-cfg_directory             $HOME/.sdlmame/cfg
-nvram_directory           $HOME/.sdlmame/nvram
-memcard_directory         $HOME/.sdlmame/memcard
-input_directory           $HOME/.sdlmame/inp
-state_directory           $HOME/.sdlmame/sta
-snapshot_directory        $HOME/.sdlmame/snap
-diff_directory            $HOME/.sdlmame/diff
-comment_directory         $HOME/.sdlmame/comments
+cfg_directory             $HOME/.@PN@:/cfg
+nvram_directory           $HOME/.@PN@:/nvram
+memcard_directory         $HOME/.@PN@:/memcard
+input_directory           $HOME/.@PN@:/inp
+state_directory           $HOME/.@PN@:/sta
+snapshot_directory        $HOME/.@PN@:/snap
+diff_directory            $HOME/.@PN@:/diff
+comment_directory         $HOME/.@PN@:/comments
 
 #
 # CORE FILENAME OPTIONS
 #
-cheat_file                @GAMES_DATADIR@/sdlmame/cheat.dat
-
+cheat_file                @GAMES_DATADIR@/@PN@:/cheat.dat
+sysinfo_file              @GAMES_DATADIR@/@PN@:/sysinfo.dat
 #
 # CORE STATE/PLAYBACK OPTIONS
 #
@@ -146,7 +146,7 @@ sdlvideofps               0
 #
 # VIDEO OPTIONS
 #
-video                     soft
+video                     @VIDEO@
 numscreens                1
 window                    0
 keepaspect                1
@@ -166,7 +166,7 @@ gl_forcepow2texture       0
 gl_notexturerect          0
 gl_vbo                    1
 gl_pbo                    1
-gl_glsl                   0
+gl_glsl                   @GLSL@
 gl_glsl_filter            1
 glsl_shader_mame0         none
 glsl_shader_mame1         none
@@ -235,17 +235,17 @@ audio_latency             3
 # If you are using one of the available non-us keyboard layouts
 # set keymap to 1 and uncomment the appropriate line below
 keymap                    0
-#keymap_file               @GAMES_DATADIR@/sdlmame/keymaps/km-be.txt
-#keymap_file               @GAMES_DATADIR@/sdlmame/keymaps/km-ch.txt
-#keymap_file               @GAMES_DATADIR@/sdlmame/keymaps/km-de.txt
-#keymap_file               @GAMES_DATADIR@/sdlmame/keymaps/km-fr.txt
-#keymap_file               @GAMES_DATADIR@/sdlmame/keymaps/km_it.txt
+#keymap_file               @GAMES_DATADIR@/@PN@:/keymaps/km-be.txt
+#keymap_file               @GAMES_DATADIR@/@PN@:/keymaps/km-ch.txt
+#keymap_file               @GAMES_DATADIR@/@PN@:/keymaps/km-de.txt
+#keymap_file               @GAMES_DATADIR@/@PN@:/keymaps/km-fr.txt
+#keymap_file               @GAMES_DATADIR@/@PN@:/keymaps/km_it.txt
 
 #
 # SDL JOYSTICK MAPPING
 #
 remapjoys                 0
-remapjoyfile              @GAMES_SYSCONFDIR@/sdlmame/joymap.dat
+remapjoyfile              @GAMES_SYSCONFDIR@/@PN@:/joymap.dat
 
 #
 # CORE COMMANDS
