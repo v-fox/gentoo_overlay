@@ -136,7 +136,7 @@
  			then
  				output "${YELLOW}Could not find a digest-file for ${CYAN}${best_candidate}${YELLOW}. Testing file integrity with tar.\n"
  				if ! tar -tf ${best_candidate} >/dev/null
-@@ -698,10 +703,10 @@
+@@ -698,17 +703,17 @@
  
  		# Remember where we are, and go to a new dir there we can work
  		tmp_dwn_dest="${DISTDIR}/.getdelta-`date +%N`-tmp"
@@ -150,6 +150,14 @@
  
  		# thanks to MATSUI Fe2+ Tetsushi for idea and patch
  		FILESIZE=$(stat -c %s "${DISTDIR}/${best_candidate}")
+ 		let TIMELIMIT=${FILESIZE}/${BANDWIDTH}
+ 		[[ $TIMELIMIT -lt $QUEUETIMEOUT ]] && QUEUETIMEOUT=$TIMELIMIT
+ 			
+-		if $FETCH "${DELTUP_SERVER}${query}"
++		if $FETCHNAME "${best_candidate}-${NEW_FILE}.dtu" "${DELTUP_SERVER}${query}"
+ 		then
+ 			# thanks to deelkar for this much more elegant solution to the "broken pipe" problem with "head -n1"
+ 			GOTFILE=$(ls -c | sed -n 1p) 
 @@ -761,20 +766,20 @@
  				done
  			fi
