@@ -1,5 +1,5 @@
---- getdelta.sh
-+++ getdelta.sh
+--- getdelta.sh	2007-07-13 16:30:26.000000000 +0000
++++ getdelta.sh	2010-08-26 23:59:07.762999995 +0000
 @@ -25,6 +25,9 @@
  VERSION="0.7"
  
@@ -48,7 +48,7 @@
  add_to_configfile LOCAL_MIRROR "" "set this to one or more (space separated) URI ending with '/' if you want to check one or more local mirror(s) first\n# most people just leave it empty."
  add_to_configfile DELTUP_SERVER "http://linux01.gwdg.de/~nlissne/deltup.php" "deltup-server to use"
  add_to_configfile FETCH "/usr/bin/wget -t 1 --passive-ftp" "command to use for downloading"
-+add_to_configfile FETCHNAME "$FETCH -O" "command to use for downloading; first parameter is the filename, second the url"
++add_to_configfile FETCHNAME "\$FETCH -O" "command to use for downloading; first parameter is the filename, second the url"
  add_to_configfile QUEUERETRY 15 "number of seconds to wait before a queued request is retried"
  add_to_configfile MAXIMUM_ACCEPTABLE_QUEUEPOS "15" "the maximum queuepos you would accept (if higher download full archive instead)"
  add_to_configfile QUEUETIMEOUT 900 "when a dtu-request is queued - how long should we wait max. before downloading the original archive instead (in seconds)"
@@ -69,20 +69,21 @@
  	echo -e "\n${YELLOW}There is a config-file ${CYAN}${GETDELTA_CONFIGFILE}${YELLOW} with some variables to control the behaviour of this script."
  	echo -e "Edit it to your needs.${NORMAL}"
  	exit 1
-@@ -464,9 +468,10 @@
+@@ -464,10 +468,12 @@
  	output "use getdelta.sh for your FETCHCOMMAND, only." &&
  	sleep 5 && exit 1
  
 -pushd $DISTDIR >/dev/null 2>/dev/null
 +pushd -- "$DISTDIR" >/dev/null 2>/dev/null
  ORIG_URI=$1
--NEW_FILE=$(basename $ORIG_URI)
-+NEW_FILE=$2
-+[ -z "${NEW_FILE}" ] && NEW_FILE=${ORIG_URI##*/}
+ NEW_FILE=$(basename $ORIG_URI)
  
++[ -z "${NEW_FILE}" ] && NEW_FILE=${ORIG_URI##*/}
++
  # repoman downloads metadata.dtd with FETCHCOMMAND
  # this should not be done with getdelta - so just fetch the file and exit
-@@ -475,7 +480,7 @@
+ 
+@@ -475,7 +481,7 @@
  # dtu files.
  if [ "${NEW_FILE}" = "metadata.dtd" ] || [ "$GETDELTA" = "0" ]
  then
@@ -91,7 +92,7 @@
  	exit $?
  fi
  
-@@ -516,7 +521,7 @@
+@@ -516,7 +522,7 @@
  #
  output "${GREEN}Searching for a previously downloaded file in ${YELLOW}${DISTDIR}\n"
  
@@ -100,7 +101,7 @@
  length_first_chars=${#first_chars}
  [ $length_first_chars -lt 3 ] && first_chars="${NEW_FILE:0:2}"
  
-@@ -527,7 +532,7 @@
+@@ -527,7 +533,7 @@
  let len1=${#mask}
  filelist=""
  
@@ -109,7 +110,7 @@
  do
  	mask2=$(mask_name "${name}")
  	# add any file, that results in the same mask or differ not more than two letters
-@@ -582,7 +587,7 @@
+@@ -582,7 +588,7 @@
  
  	# find matching part of filename - first: frontmatch
  	x=0;
@@ -118,7 +119,7 @@
  	match=""
  	while [ -z "$match" ]
  	do
-@@ -657,7 +662,7 @@
+@@ -657,7 +663,7 @@
  	FILE_IS_CORRUPT=false
  	if $CHECK_OLD_FILE 
  	then
@@ -127,7 +128,7 @@
  		if [ "$file_digest" ]
  		then
  			file_md5=$(cut -d ' ' -f2 <<< "$file_digest") 
-@@ -669,7 +674,7 @@
+@@ -669,7 +675,7 @@
  				FILE_IS_CORRUPT=true
  			fi
  		else
@@ -136,7 +137,7 @@
  			then
  				output "${YELLOW}Could not find a digest-file for ${CYAN}${best_candidate}${YELLOW}. Testing file integrity with tar.\n"
  				if ! tar -tf ${best_candidate} >/dev/null
-@@ -698,17 +703,17 @@
+@@ -698,17 +704,16 @@
  
  		# Remember where we are, and go to a new dir there we can work
  		tmp_dwn_dest="${DISTDIR}/.getdelta-`date +%N`-tmp"
@@ -152,23 +153,54 @@
  		FILESIZE=$(stat -c %s "${DISTDIR}/${best_candidate}")
  		let TIMELIMIT=${FILESIZE}/${BANDWIDTH}
  		[[ $TIMELIMIT -lt $QUEUETIMEOUT ]] && QUEUETIMEOUT=$TIMELIMIT
- 			
+-			
 -		if $FETCH "${DELTUP_SERVER}${query}"
-+		if $FETCHNAME "${best_candidate}-${NEW_FILE}.dtu" "${DELTUP_SERVER}${query}"
++		if $FETCH "${DELTUP_SERVER}${query}" -O ${best_candidate}-${NEW_FILE}.dtu
  		then
  			# thanks to deelkar for this much more elegant solution to the "broken pipe" problem with "head -n1"
  			GOTFILE=$(ls -c | sed -n 1p) 
+@@ -718,15 +723,15 @@
+ 			# may have sento to us.
+ 			
+ 			# first: the request have been queued
+-			if [ "${GOTFILE}" = "deltup-queued" ]
++#			if [ "${GOTFILE}" = "deltup-queued" ]
++			if [[ "$(file -bi ${GOTFILE}|cut -d ";" -f1)" != "application/x-bzip2" && "$(cat ${GOTFILE}|cut -d "," -f1)" != "sorry" ]]
+ 			then 
+ 				let QTMOUT=$(date +%s)+QUEUETIMEOUT
+-				while [ -f deltup-queued ]
++				while [ "$(file -bi ${GOTFILE}|cut -d ";" -f1)" != "application/x-bzip2" ]
+ 				do
+ 					output "${GREEN}destination file: ${CYAN}${NEW_FILE}\n"
+-					output "${YELLOW}$(cat deltup-queued)"
+-					QUEUEPOS=$(grep "has been queued" deltup-queued | cut -d. -f2 | cut -d")" -f1)
+-					rm -f deltup-queued
++					output "${YELLOW}$(cat ${GOTFILE})"
++					QUEUEPOS=$(grep "has been queued" ${GOTFILE} | cut -d. -f2 | cut -d")" -f1)
+ 					TSTAMP=$(date +%s)
+ 					if ((TSTAMP<QTMOUT)) && ((QUEUEPOS<=MAXIMUM_ACCEPTABLE_QUEUEPOS))
+ 					then
+@@ -741,7 +746,7 @@
+ 							sleep 1
+ 						done
+ 						echo -n -e "${NORMAL}"
+-						$FETCH "${DELTUP_SERVER}${query}"
++						$FETCH "${DELTUP_SERVER}${query}" -O ${best_candidate}-${NEW_FILE}.dtu
+ 						GOTFILE=$(ls -c | sed -n 1p)
+ 					else
+ 						if ((TSTAMP>=QTMOUT))
 @@ -761,20 +766,20 @@
  				done
  			fi
  			
 -			if [ -f ${best_candidate}-${NEW_FILE}.failed ]
-+			if [ -f "${best_candidate}-${NEW_FILE}.failed" ]
++			if [ "$(cat ${GOTFILE}|cut -d "," -f1)" = "sorry" ]
  			then
  				output "\n${RED}The server could not build the dtu-file for ${NEW_FILE}\n" 
- 				output "${YELLOW}reason:\n${RED}$(cat ${best_candidate}-${NEW_FILE}.failed)\n" 
+-				output "${YELLOW}reason:\n${RED}$(cat ${best_candidate}-${NEW_FILE}.failed)\n" 
 -				rm -rf ${best_candidate}-${NEW_FILE}.failed
-+				rm -rf -- "${best_candidate}-${NEW_FILE}.failed"
++				output "${YELLOW}reason:\n${RED}$(cat ${GOTFILE})\n" 
++				rm -rf -- "${GOTFILE}"
  			fi
  
 -			if [ -f ${best_candidate}-${NEW_FILE}.dtu ]
