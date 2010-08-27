@@ -1,5 +1,5 @@
 --- getdelta.sh	2007-07-13 16:30:26.000000000 +0000
-+++ getdelta.sh	2010-08-26 23:59:07.762999995 +0000
++++ getdelta.sh	2010-08-27 17:23:31.692000002 +0000
 @@ -25,6 +25,9 @@
  VERSION="0.7"
  
@@ -169,7 +169,7 @@
  			then 
  				let QTMOUT=$(date +%s)+QUEUETIMEOUT
 -				while [ -f deltup-queued ]
-+				while [ "$(file -bi ${GOTFILE}|cut -d ";" -f1)" != "application/x-bzip2" ]
++				while [[ "$(file -bi ${GOTFILE}|cut -d ";" -f1)" != "application/x-bzip2" && "$(cat ${GOTFILE}|cut -d "," -f1)" != "sorry" ]]
  				do
  					output "${GREEN}destination file: ${CYAN}${NEW_FILE}\n"
 -					output "${YELLOW}$(cat deltup-queued)"
