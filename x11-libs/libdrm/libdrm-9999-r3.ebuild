@@ -3,66 +3,89 @@
 # $Header: /var/cvsroot/gentoo-x86/x11-libs/libdrm/libdrm-2.3.0.ebuild,v 1.8 2007/05/20 20:47:52 jer Exp $
 
 # Must be before x-modular eclass is inherited
-#SNAPSHOT="yes"
+SNAPSHOT="yes"
 
-inherit autotools x-modular
+EAPI="2"
+inherit autotools x-modular git
+
+EGIT_REPO_URI="git://anongit.freedesktop.org/git/mesa/drm"
+EGIT_BOOTSTRAP="eautoreconf"
 
 DESCRIPTION="X.Org libdrm library"
 HOMEPAGE="http://dri.freedesktop.org/"
-SRC_URI="http://dri.freedesktop.org/libdrm/${P}.tar.gz"
+SRC_URI=""
+IUSE_VIDEO_CARDS="video_cards_nouveau video_cards_radeon video_cards_intel video_cards_vmware"
+IUSE="${IUSE_VIDEO_CARDS} +kms +udev"
 
-KEYWORDS="~alpha ~amd64 ~arm ~hppa ~ia64 ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~x86-fbsd"
-IUSE_VIDEO_CARDS="nouveau radeon"
-for i in ${IUSE_VIDEO_CARDS}; do
-	IUSE="${IUSE} video_cards_${i}"
-done
-RESTRICT="test" # see bug #236845
+KEYWORDS=""
 
-RDEPEND="dev-libs/libpthread-stubs"
+RDEPEND=""
 DEPEND="${RDEPEND}"
 
-CONFIGURE_OPTIONS="	$(use_enable video_cards_nouveau nouveau-experimental-api)
-			$(use_enable video_cards_radeon radeon-experimental-api)"
+CONFIGURE_OPTIONS="$(use_enable kms libkms)
+		   $(use_enable udev)
+		   $(use_enable video_cards_nouveau nouveau-experimental-api)
+		   $(use_enable video_cards_radeon radeon)
+		   $(use_enable video_cards_intel intel)
+		   $(use_enable video_cards_vmware vmwgfx-experimental-api)"
 
-x-modular_src_compile() {
+src_unpack() {
+	git_src_unpack
+
+	if use amd64; then
+		cd "${WORKDIR}"
+		mkdir 32
+		mv "${P}" 32/ || die
+		EGIT_OFFLINE=1 git_src_unpack
+	fi
+}
+
+src_prepare() {
+	if [[ "${SNAPSHOT}" = "yes" ]]
+	then
+		# If possible, generate configure if it doesn't exist
+		if [ -f "./configure.ac" ]
+		then
+			if use amd64; then
+				multilib_toolchain_setup x86
+				cd "${WORKDIR}/32/${P}"
+				eautoreconf
+				elibtoolize
+				sed -i 	-e 's:UDEV=$enableval:UDEV=no:' \
+					-e 's:HAVE_LIBUDEV=yes:HAVE_LIBUDEV=no:g' configure || die "not hacked"
+				multilib_toolchain_setup amd64
+				cd "${S}"
+			fi
+			eautoreconf
+		fi
+	fi
+
+	# Joshua Baergen - October 23, 2005
+	# Fix shared lib issues on MIPS, FBSD, etc etc
+	elibtoolize
+}
+
+src_configure() {
 	if use amd64; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}" || die
 		x-modular_font_configure
 		x-modular_debug_setup
-		X11_LIBS=/usr/lib32 \
-		LDPATH="/lib32:/usr/lib32:/usr/local/lib32:${LDPATH}" \
-		econf --prefix=${XDIR} \
-			--datadir=${XDIR}/share --libdir=/usr/lib32 \
+		[[ -n ${CONFIGURE_OPTIONS} ]]
+		if [[ -x ${ECONF_SOURCE:-.}/configure ]]; then
+			X11_LIBS=/usr/lib32 \
+			LDPATH="/lib32:/usr/lib32:/usr/local/lib32:${LDPATH}" \
+			econf --prefix=${XDIR} \
+			--datadir=${XDIR}/share \
 			${FONT_OPTIONS} \
 			${DRIVER_OPTIONS} \
 			${CONFIGURE_OPTIONS} \
-			--disable-udev
-		LDPATH="/lib32:/usr/lib32:/usr/local/lib32:${LDPATH}" \
-		emake || die "emake 32bit stuff failed"
+			--with-x-libraries=/usr/lib32
+		fi
 		multilib_toolchain_setup amd64
 		cd "${S}"
 	fi
 
-	x-modular_src_configure
-	x-modular_src_make
-}
-
-src_unpack () {
-	if use amd64; then
-		cd "${WORKDIR}"
-		mkdir 32
-		unpack "${A}"
-		mv "${P}" 32/ || die
-		cd "${WORKDIR}/32/${P}"
-		sed -i 	-e 's:UDEV=$enableval:UDEV=no:' \
-			-e 's:HAVE_LIBUDEV=yes:HAVE_LIBUDEV=no:g' configure || die "not hacked"
-		cd ${WORKDIR}
-	fi
-	unpack "${A}"
-}
-
-x-modular_src_configure() {
 	x-modular_font_configure
 	x-modular_debug_setup
 
@@ -77,11 +100,23 @@ x-modular_src_configure() {
 			--datadir=${XDIR}/share \
 			${FONT_OPTIONS} \
 			${DRIVER_OPTIONS} \
-			${CONFIGURE_OPTIONS} --enable-udev
+			${CONFIGURE_OPTIONS}
 	fi
 }
 
-x-modular_src_install() {
+src_compile() {
+	if use amd64; then
+		multilib_toolchain_setup x86
+		cd "${WORKDIR}/32/${P}" || die
+		LDPATH="/lib32:/usr/lib32:/usr/local/lib32:${LDPATH}" \
+		emake || die "emake 32bit stuff failed"
+		multilib_toolchain_setup amd64
+		cd "${S}"
+	fi
+	emake || die "emake failed"
+}
+
+src_install() {
 	if use amd64; then
 		cd "${WORKDIR}/32/${P}"
 		multilib_toolchain_setup x86
@@ -126,30 +161,6 @@ x-modular_src_install() {
 		install_driver_hwdata
 	fi
 }
-
-x-modular_reconf_source() {
-	if [[ "${SNAPSHOT}" = "yes" ]]
-	then
-		# If possible, generate configure if it doesn't exist
-		if [ -f "./configure.ac" ]
-		then
-			if use amd64; then
-				multilib_toolchain_setup x86
-				cd "${WORKDIR}/32/${P}"
-				eautoreconf
-				elibtoolize
-				multilib_toolchain_setup amd64
-				cd "${S}"
-			fi
-			eautoreconf
-		fi
-	fi
-
-	# Joshua Baergen - October 23, 2005
-	# Fix shared lib issues on MIPS, FBSD, etc etc
-	elibtoolize
-}
-
 
 pkg_preinst() {
 	x-modular_pkg_preinst
