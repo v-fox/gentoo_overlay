@@ -101,8 +101,8 @@ pkg_setup() {
 src_prepare() {
 	cd "${S}"
 
-	# hardcode linking with libpng 1.2 in makefile
-	sed -i -e "s:-lpng:-lpng12:g" Makefile || die
+	# proper >=libpng-1.4 patch
+	epatch "${FILESDIR}"/${PN}-${PV}-libpng14.patch
 
 	# Fix jpeg8 bug - http://bugs.gentoo.org/show_bug.cgi?id=150865
 	epatch "${FILESDIR}"/${PN}-${PV}-jpeg8.patch
