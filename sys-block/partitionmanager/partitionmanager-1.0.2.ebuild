@@ -22,7 +22,7 @@ SLOT="0"
 IUSE="debug"
 
 RDEPEND="
-	sys-apps/parted
+	sys-block/parted
 	sys-libs/e2fsprogs-libs
 "
 DEPEND="${RDEPEND}
