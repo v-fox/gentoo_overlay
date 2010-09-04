@@ -40,10 +40,10 @@ From: Massimo Del Fedele <max@veneto.com>
  create mode 100644 dlls/winedib.drv/winedib.drv.spec
 
 diff --git a/configure.ac b/configure.ac
-index 130291c..d8f2fe9 100644
+index 61f376e..8d188d9 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -2642,6 +2642,7 @@ WINE_CONFIG_DLL(wineaudioio.drv)
+@@ -2639,6 +2639,7 @@ WINE_CONFIG_DLL(wineaudioio.drv)
  WINE_CONFIG_DLL(winecoreaudio.drv)
  WINE_CONFIG_LIB(winecrt0)
  WINE_CONFIG_DLL(wined3d,,[wined3d])

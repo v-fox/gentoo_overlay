@@ -1,4 +1,5 @@
-# This series applies on GIT commit 23482259a50de7e568de948bd9a0a3207ae471fb
+# This series applies on GIT commit d4c90663d9744acfec098e27c97c20ae6a81f072
+wineps-drv-send-page-size.patch
 dib-engine-hook-the-engine-bet.patch
 dib-engine-initial-pass-throug.patch
 dib-engine-fork-ddb-dib-behavi.patch
@@ -15,3 +16,4 @@ dib-engine-dont-use-now-missin.patch
 dib-engine-fix-vertically-mirr.patch
 dib-engine-update-winedib-drv.patch
 dib-engine-quick-fix-for-wine-1-2-rc2.patch
+dib-engine-fix-alphablend-bug.patch

@@ -18,15 +18,17 @@ else
 	S=${WORKDIR}/${MY_P}
 fi
 
-GV="1.0.0"
+GV="1.1.0"
 DESCRIPTION="free implementation of Windows(tm) on Unix"
 HOMEPAGE="http://www.winehq.org/"
 SRC_URI="${SRC_URI}
-	gecko? ( mirror://sourceforge/wine/wine_gecko-${GV}.cab )"
+	gecko? (
+		x86? ( mirror://sourceforge/wine/wine_gecko-${GV}-x86.cab )
+		amd64? ( mirror://sourceforge/wine/wine_gecko-${GV}-x86_64.cab ) )"
 
 LICENSE="LGPL-2.1"
 SLOT="0"
-IUSE="alsa capi cups dbus esd +gecko glu gphoto gsm hal jack jpeg cms ldap mp3 nas ncurses +openal opengl ssl oss perl png samba scanner gnutls truetype xml X +win16 win64 newdib"
+IUSE="alsa capi cups dbus esd +gecko glu gphoto gsm hal icns jack jpeg cms ldap mp3 nas ncurses +openal opengl ssl oss perl png +pthread samba scanner gnutls tiff truetype xml v4l2 X +win16 win64 newdib"
 RESTRICT="test" #72375
 
 CDEPEND="media-fonts/corefonts
@@ -59,6 +61,7 @@ CDEPEND="media-fonts/corefonts
 	mp3? 	( media-sound/mpg123 )
 	ssl? 	( dev-libs/openssl )
 	jpeg? 	( media-libs/jpeg )
+	icns? 	( media-libs/libicns )
 	ldap? 	( net-nds/openldap )
 	cms? 	( media-libs/lcms )
 	png? 	( media-libs/libpng )
@@ -66,14 +69,15 @@ CDEPEND="media-fonts/corefonts
 	gnutls?	( net-libs/gnutls )
 	xml? 	( dev-libs/libxml2 dev-libs/libxslt )
 	scanner? ( media-gfx/sane-backends )
+	tiff? 	( media-libs/tiff )
+	v4l2? 	( media-libs/libv4l )
 	win64? ( >=sys-devel/gcc-4.4_alpha )
 	amd64? ( >=sys-kernel/linux-headers-2.6
 		app-emulation/emul-linux-x86-baselibs
 		truetype? 	( >=app-emulation/emul-linux-x86-xlibs-2.1 )
 		X? 		( >=app-emulation/emul-linux-x86-xlibs-2.1 )
 		alsa? 		( >=app-emulation/emul-linux-x86-soundlibs-2.1 )
-		mp3? 		( >=app-emulation/emul-linux-x86-soundlibs-2.1 )
-		)"
+		mp3? 		( >=app-emulation/emul-linux-x86-soundlibs-2.1 ) )"
 
 RDEPEND="${CDEPEND}
 	perl? 	( dev-lang/perl
@@ -162,11 +166,14 @@ src_configure() {
 		$(use_with png) \
 		$(use_with ssl openssl) \
 		$(use_with nas) \
+		$(use_with pthread) \
 		$(use_with scanner sane) \
+		$(use_with tiff) \
 		$(use_with truetype freetype) \
 		$(use_with gnutls) \
 		$(use_with xml) \
 		$(use_with xml xslt) \
+		$(use_with v4l2 v4l) \
 		|| die "configure failed"
 
 	emake -j1 depend || die "depend"
@@ -181,7 +188,10 @@ src_install() {
 	dodoc ANNOUNCE AUTHORS README
 	if use gecko ; then
 		insinto /usr/share/wine/gecko
-		doins "${DISTDIR}"/wine_gecko-${GV}.cab || die
+		use x86 && \
+			doins "${DISTDIR}"/wine_gecko-${GV}-x86.cab || die
+		use amd64 && \
+			doins "${DISTDIR}"/wine_gecko-${GV}-x86_64.cab || die
 	fi
 }
 
