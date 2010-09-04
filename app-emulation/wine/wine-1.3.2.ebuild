@@ -23,8 +23,8 @@ DESCRIPTION="free implementation of Windows(tm) on Unix"
 HOMEPAGE="http://www.winehq.org/"
 SRC_URI="${SRC_URI}
 	gecko? (
-		x86? ( mirror://sourceforge/wine/wine_gecko-${GV}-x86.cab )
-		amd64? ( mirror://sourceforge/wine/wine_gecko-${GV}-x86_64.cab ) )"
+		!win64? ( mirror://sourceforge/wine/wine_gecko-${GV}-x86.cab )
+		win64? ( mirror://sourceforge/wine/wine_gecko-${GV}-x86_64.cab ) )"
 
 LICENSE="LGPL-2.1"
 SLOT="0"
@@ -156,7 +156,7 @@ src_configure() {
 		$(use_with glu) \
 		$(use_with gphoto) \
 		$(use_with gsm) \
-		$(use_with mp3) \
+		$(use_with mp3 mpg123) \
 		$(use_with jack) \
 		$(use_with jpeg) \
 		$(use_with cms) \
@@ -188,10 +188,11 @@ src_install() {
 	dodoc ANNOUNCE AUTHORS README
 	if use gecko ; then
 		insinto /usr/share/wine/gecko
-		use x86 && \
-			doins "${DISTDIR}"/wine_gecko-${GV}-x86.cab || die
-		use amd64 && \
-			doins "${DISTDIR}"/wine_gecko-${GV}-x86_64.cab || die
+		if ! use win64; then
+			doins "${DISTDIR}/wine_gecko-${GV}-x86.cab" || die
+		else
+			doins "${DISTDIR}/wine_gecko-${GV}-x86_64.cab" || die
+		fi
 	fi
 }
 
