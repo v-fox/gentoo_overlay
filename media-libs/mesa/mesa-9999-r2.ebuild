@@ -121,6 +121,12 @@ pkg_setup() {
 
 	# recommended by upstream
 	append-flags -ffast-math
+
+	# Filter LDFLAGS that cause symbol lookup problem
+	if use gallium; then
+		append-ldflags -Wl,-z,lazy
+		filter-ldflags -Wl,-z,now
+	fi
 }
 
 src_unpack() {
