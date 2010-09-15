@@ -273,7 +273,7 @@ src_configure() {
 			--enable-32-bit \
 			--disable-64-bit \
 			${myconf} \
-			--disable-gallium || die "doing 32bit stuff failed"
+			--disable-gallium-llvm || die "doing 32bit stuff failed"
 		multilib_toolchain_setup amd64
 		myconf="${myconf} --enable-64-bit --disable-32-bit"
 		cd "${S}"
