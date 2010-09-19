@@ -132,8 +132,6 @@ src_prepare() {
 		done
 	fi
 
-	cd "${S}"
-
 	# DInput via XI2 !
 	epatch "${FILESDIR}/dinput_xi2.patch"
 }
