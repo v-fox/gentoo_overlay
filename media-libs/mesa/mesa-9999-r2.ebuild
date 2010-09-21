@@ -222,8 +222,16 @@ src_configure() {
 	myconf="${myconf} $(use_enable egl)
 			  $(use_enable glu)
 			  $(use_enable glw)"
-	if use egl && use kms; then
-		myconf="${myconf} --with-egl-platforms=x11,kms"
+	if use egl; then
+		if use X && use kms; then
+			myconf="${myconf} --with-egl-platforms=x11,drm"
+		elif use X && ! use kms; then
+			myconf="${myconf} --with-egl-platforms=x11"
+		elif ! use X && use kms; then
+			myconf="${myconf} --with-egl-platforms=drm"
+		else
+			ewarn "X and kms disabled. it is strongly recommended to enable at least kms"
+		fi
 	fi
 	use glw && myconf="${myconf} $(use_enable motif)"
 
@@ -238,7 +246,8 @@ src_configure() {
 		# state trackers
 		if use gallium-force; then
 			# add wgl later
-			myconf="${myconf} --enable-gallium-swrast --with-state-trackers=glx,egl"
+			myconf="${myconf} --enable-gallium-swrast --with-state-trackers=glx"
+			use egl 	&& myconf="${myconf},egl"
 			use dri 	&& myconf="${myconf},dri"
 			use openvg 	&& myconf="${myconf},vega"
 			use X 		&& myconf="${myconf},xorg"
