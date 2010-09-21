@@ -14,7 +14,7 @@ MY_PN="${PN/m/M}"
 MY_P="${MY_PN}-${PV//_}"
 MY_SRC_P="${MY_PN}Lib-${PV/_/-}"
 MY_PV="$(get_version_component_range 1-2)"
-DESCRIPTION="OpenGL-like graphic library for Linux"
+DESCRIPTION="GPU acceleration libraries for OpenGL, OpenVG, Direct3D and much more"
 HOMEPAGE="http://mesa3d.sourceforge.net/"
 if [[ $PV = *_rc* ]]; then
 	SRC_URI="http://www.mesa3d.org/beta/${MY_SRC_P}.tar.gz"
@@ -45,15 +45,16 @@ IUSE="${IUSE_VIDEO_CARDS}
 	debug
 	demo
 	doc
+	direct3d
 	+dri
 	+egl
 	+gallium
-	gallium-force
 	gles
 	+glu
 	+glw
 	llvm
 	+kms
+	+opengl
 	openvg
 	osmesa
 	pic
@@ -68,6 +69,7 @@ IUSE="${IUSE_VIDEO_CARDS}
 RDEPEND="app-admin/eselect-opengl
 	dev-libs/expat
 	sys-libs/talloc
+	direct3d? ( app-emulation/wine )
 	X? ( x11-libs/libX11
 		x11-libs/libXext
 		>=x11-libs/libXxf86vm-1.1
@@ -108,6 +110,11 @@ pkg_setup() {
 			eerror ${msg}
 			die ${msg}
 		fi
+	fi
+
+	if use direct3d && ! use egl; then
+		eerror "for use of direct3d state tracker you must enable egl"
+		die "egl support missing"
 	fi
 
 	if use debug; then
@@ -244,14 +251,13 @@ src_configure() {
 	# configure gallium support
 	if use gallium; then
 		# state trackers
-		if use gallium-force; then
-			# add wgl later
-			myconf="${myconf} --enable-gallium-swrast --with-state-trackers=glx"
-			use egl 	&& myconf="${myconf},egl"
-			use dri 	&& myconf="${myconf},dri"
-			use openvg 	&& myconf="${myconf},vega"
-			use X 		&& myconf="${myconf},xorg"
-		fi
+		myconf="${myconf} --enable-gallium-swrast --with-state-trackers="
+		use opengl 	&& myconf="${myconf},glx"
+		use egl 	&& myconf="${myconf},egl"
+		use direct3d 	&& myconf="${myconf},d3d1x"
+		use dri 	&& myconf="${myconf},dri"
+		use openvg 	&& myconf="${myconf},vega"
+		use X 		&& myconf="${myconf},xorg"
 
 		# drivers
 		myconf="${myconf} \
