@@ -1,31 +1,36 @@
-# Copyright 1999-2008 Gentoo Foundation
+# Copyright 1999-2010 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/x11-apps/mesa-progs/mesa-progs-7.1.ebuild,v 1.1 2008/09/06 07:04:38 dberkholz Exp $
+# $Header: /var/cvsroot/gentoo-x86/x11-apps/mesa-progs/mesa-progs-7.7.ebuild,v 1.11 2010/09/17 11:25:15 scarabeus Exp $
 
 inherit toolchain-funcs
 
 MY_PN="${PN/m/M}"
 MY_PN="${MY_PN/-progs}"
-MY_P="${MY_PN}-${PV}"
-LIB_P="${MY_PN}Lib-${PV}"
-PROG_P="${MY_PN}Demos-${PV}"
-DESCRIPTION="Mesa's OpenGL utility and demo programs (like glxgears)"
+MY_P="${MY_PN}-${PV/_/-}"
+LIB_P="${MY_PN}Lib-${PV/_/-}"
+PROG_P="${MY_PN}Demos-${PV/_/-}"
+DESCRIPTION="Mesa's OpenGL utility and demo programs (glxgears and glxinfo)"
 HOMEPAGE="http://mesa3d.sourceforge.net/"
-SRC_URI="mirror://sourceforge/mesa3d/${LIB_P}.tar.bz2
-	mirror://sourceforge/mesa3d/${PROG_P}.tar.bz2"
-
+if [[ $PV = *_rc* ]]; then
+	SRC_URI="http://www.mesa3d.org/beta/${LIB_P}.tar.gz
+		http://www.mesa3d.org/beta/${PROG_P}.tar.gz"
+elif [[ $PV = 9999 ]]; then
+	SRC_URI=""
+else
+	SRC_URI="ftp://ftp.freedesktop.org/pub/mesa/${PV}/${LIB_P}.tar.bz2
+		ftp://ftp.freedesktop.org/pub/mesa/${PV}/${PROG_P}.tar.bz2"
+fi
 LICENSE="LGPL-2"
 SLOT="0"
-KEYWORDS="~alpha ~amd64 ~arm ~hppa ~ia64 ~mips ~ppc ~ppc64 ~sh ~sparc ~x86 ~x86-fbsd"
+KEYWORDS="alpha amd64 arm hppa ia64 ~mips ppc ppc64 sh sparc x86 ~x86-fbsd ~x86-freebsd ~amd64-linux ~ia64-linux ~x86-linux"
 IUSE=""
 
-RDEPEND="virtual/glut
-	virtual/opengl
-	virtual/glu"
+RDEPEND="media-libs/freeglut
+	virtual/opengl"
 
 DEPEND="${RDEPEND}"
 
-S="${WORKDIR}/Mesa-${PV}"
+S="${WORKDIR}/${MY_P}"
 
 pkg_setup() {
 	if [[ ${KERNEL} == "FreeBSD" ]]; then
@@ -54,6 +59,7 @@ src_unpack() {
 	echo "OPT_FLAGS = ${CFLAGS}" >> ${HOSTCONF}
 	echo "CC = $(tc-getCC)" >> ${HOSTCONF}
 	echo "CXX = $(tc-getCXX)" >> ${HOSTCONF}
+	echo "LDFLAGS = ${LDFLAGS}" >> ${HOSTCONF}
 
 	# Just executables here, no need to compile with -fPIC
 	echo "PIC_FLAGS =" >> ${HOSTCONF}
