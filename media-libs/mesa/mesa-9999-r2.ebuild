@@ -43,7 +43,6 @@ IUSE_VIDEO_CARDS="
 	video_cards_via"
 IUSE="${IUSE_VIDEO_CARDS}
 	debug
-	demo
 	doc
 	direct3d
 	+dri
@@ -271,8 +270,6 @@ src_configure() {
 	else
 		myconf="${myconf} --disable-gallium"
 	fi
-
-	myconf="${myconf} $(use_with demo demos)"
 
 	# Get rid of glut includes
 	rm -f "${S}"/include/GL/glut*h
