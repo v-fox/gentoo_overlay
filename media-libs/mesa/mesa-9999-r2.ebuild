@@ -28,6 +28,7 @@ LICENSE="LGPL-2"
 SLOT="0"
 KEYWORDS=""
 IUSE_VIDEO_CARDS="
+	video_cards_fbdev
 	video_cards_intel
 	video_cards_mach64
 	video_cards_mga
@@ -111,9 +112,16 @@ pkg_setup() {
 		fi
 	fi
 
-	if use direct3d && ! use egl; then
-		eerror "for use of direct3d state tracker you must enable egl"
-		die "egl support missing"
+	if use gles && ! use gallium && ! use xcb; then
+		eerror "for use of gles you should enable gallium or xcb"
+		die "gles requested without gallium or xcb"
+	fi
+
+	if ! use egl; then
+		ewarn "egl support is disabled ! egl is really must-have for modern systems"
+		ewarn "it will be better to enable it"
+		use openvg 	&& die "openvg can't work without egl. failing..."
+		use direct3d 	&& die "direct3d can't work without egl. failing..."
 	fi
 
 	if use debug; then
@@ -188,14 +196,16 @@ src_prepare() {
 src_configure() {
 	local myconf
 
-	myconf="${myconf} $(use_enable debug)"
+	myconf+=" $(use_enable debug)"
 
 	# Do we want thread-local storage (TLS)?
-	myconf="${myconf} $(use_enable nptl glx-tls)"
+	myconf+=" $(use_enable nptl glx-tls)"
 
 	# support of OpenGL for Embedded Systems
-	myconf="${myconf} $(use_enable gles gles1)
+	if use xcb; then
+		myconf+=" $(use_enable gles gles1)
 			  $(use_enable gles gles2)"
+	fi
 
 	# Configurable DRI drivers
 	driver_enable swrast
@@ -214,52 +224,51 @@ src_configure() {
 	use X 			&& DRIVER="xlib"
 	use dri 		&& DRIVER="dri"
 
-	myconf="${myconf} --with-driver=${DRIVER}"
+	myconf+=" --with-driver=${DRIVER}"
 
 	if [[ $DRIVER = osmesa ]]; then
-		myconf="${myconf} --with-osmesa-bits=32"
+		myconf+=" --with-osmesa-bits=32"
 	fi
 
 	if [[ $DRIVER != osmesa ]]; then
 		# build & use osmesa even with GL
-		use osmesa && myconf="${myconf} --enable-gl-osmesa"
+		use osmesa && myconf+=" --enable-gl-osmesa"
 	fi
 
-	myconf="${myconf} $(use_enable egl)
-			  $(use_enable glu)
-			  $(use_enable glw)"
+	myconf+=" $(use_enable egl)
+		  $(use_enable glu)
+		  $(use_enable glw)"
 	if use egl; then
-		if use X && use kms; then
-			myconf="${myconf} --with-egl-platforms=x11,drm"
-		elif use X && ! use kms; then
-			myconf="${myconf} --with-egl-platforms=x11"
-		elif ! use X && use kms; then
-			myconf="${myconf} --with-egl-platforms=drm"
-		else
-			ewarn "X and kms disabled. it is strongly recommended to enable at least kms"
-		fi
+		myconf+=" --with-egl-platforms="
+		use X 			&& myconf+=",x11"
+		use kms 		&& myconf+=",drm"
+		use direct3d 		&& myconf+=",gdi"
+		use video_cards_fbdev 	&& myconf+=",fbdev"
 	fi
-	use glw && myconf="${myconf} $(use_enable motif)"
+	use glw && myconf+=" $(use_enable motif)"
 
-	myconf="${myconf} $(use_with X x)"
-	use X && myconf="${myconf} $(use_enable xcb)"
+	myconf+=" $(use_with X x)"
+	use X && myconf+=" $(use_enable xcb)"
 
 	# Set drivers to everything on which we ran driver_enable()
-	use dri && myconf="${myconf} --with-dri-drivers=${DRI_DRIVERS}"
+	use dri && myconf+=" --with-dri-drivers=${DRI_DRIVERS}"
 
 	# configure gallium support
 	if use gallium; then
 		# state trackers
-		myconf="${myconf} --enable-gallium-swrast --with-state-trackers="
-		use opengl 	&& myconf="${myconf},glx"
-		use egl 	&& myconf="${myconf},egl"
-		use direct3d 	&& myconf="${myconf},d3d1x"
-		use dri 	&& myconf="${myconf},dri"
-		use openvg 	&& myconf="${myconf},vega"
-		use X 		&& myconf="${myconf},xorg"
+		myconf+=" --enable-gallium-swrast --with-state-trackers="
+		use opengl 	&& myconf+=",glx"
+		use egl 	&& myconf+=",egl"
+		use direct3d 	&& myconf+=",d3d1x"
+		use dri 	&& myconf+=",dri"
+		use openvg 	&& myconf+=",vega"
+		use X 		&& myconf+=",xorg"
+
+		# gles for gallium
+		use gles 	&& myconf+=" --enable-gles-overlay"
 
 		# drivers
-		myconf="${myconf} \
+		myconf+=" \
 			$(use_enable video_cards_vmware gallium-svga)
 			$(use_enable video_cards_intel gallium-i915)
 			$(use_enable video_cards_intel gallium-i965)
@@ -268,15 +277,15 @@ src_configure() {
 			$(use_enable video_cards_nouveau gallium-nouveau)
 			$(use_enable llvm gallium-llvm)"
 	else
-		myconf="${myconf} --disable-gallium"
+		myconf+=" --disable-gallium"
 	fi
 
 	# Get rid of glut includes
 	rm -f "${S}"/include/GL/glut*h
-	myconf="${myconf} --disable-glut"
+	myconf+=" --disable-glut"
 
-	use selinux && myconf="${myconf} --enable-selinux"
-	use static && myconf="${myconf} --enable-static"
+	use selinux && myconf+=" --enable-selinux"
+	use static && myconf+=" --enable-static"
 
 	if use amd64; then
 		multilib_toolchain_setup x86
@@ -287,7 +296,7 @@ src_configure() {
 			${myconf} \
 			--disable-gallium-llvm || die "doing 32bit stuff failed"
 		multilib_toolchain_setup amd64
-		myconf="${myconf} --enable-64-bit --disable-32-bit"
+		myconf+=" --enable-64-bit --disable-32-bit"
 		cd "${S}"
 	fi
 
