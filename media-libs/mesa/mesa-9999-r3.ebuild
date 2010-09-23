@@ -147,9 +147,6 @@ src_prepare() {
 
 	eautoreconf
 
-	#cd ${S}/src/gallium/winsys/drm
-	#epatch "${FILESDIR}/${P}_fix-drm-template.patch"
-
 	# remove glew headers. We preffer to use system ones
 	rm -f "${S}"/include/GL/{wglew,wglext,glut}.h \
 		|| die "Removing glew includes failed."
@@ -253,20 +250,12 @@ src_configure() {
 	econf ${myconf} || die
 }
 
+src_compile() {
+	emake -j1 || die
+}
+
 src_install() {
 	dodir /usr
-
-	if use amd64; then
-		cd "${WORKDIR}/32/${MY_P}"
-		multilib_toolchain_setup x86
-		emake \
-			DESTDIR="${D}" \
-			install || die "Installation of 32bit stuff failed"
-		fix_opengl_symlinks
-		dynamic_libgl_install
-		multilib_toolchain_setup amd64
-		cd "${S}"
-	fi
 
 	emake \
 		DESTDIR="${D}" \
