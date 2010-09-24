@@ -53,7 +53,7 @@ IUSE="${IUSE_VIDEO_CARDS}
 	+glu
 	+glw
 	llvm
-	+kms
+	+drm
 	+opengl
 	openvg
 	osmesa
@@ -194,7 +194,7 @@ src_configure() {
 	if use egl; then
 		myconf+=" --with-egl-platforms="
 		use X 			&& myconf+=",x11"
-		use kms 		&& myconf+=",drm"
+		use drm 		&& myconf+=",drm"
 		use direct3d 		&& myconf+=",gdi"
 		use video_cards_fbdev 	&& myconf+=",fbdev"
 	fi
