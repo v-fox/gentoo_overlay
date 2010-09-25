@@ -197,9 +197,6 @@ src_prepare() {
 src_configure() {
 	local myconf
 
-	myconf+=" $(use_with X x)"
-	use X && myconf+=" $(use_enable xcb)"
-
 	local DRIVER="osmesa"
 	use X 			&& DRIVER="xlib"
 	use dri 		&& DRIVER="dri"
@@ -210,7 +207,7 @@ src_configure() {
 	fi
 
 	if use classic && use dri; then
-	# Configurable DRI drivers
+		# Configurable DRI drivers
 		driver_enable swrast
 
 		# Intel code
@@ -250,19 +247,13 @@ src_configure() {
 			myconf+=" $(use_enable gles gles1)
 				  $(use_enable gles gles2)"
 		fi
-	fi
 
-	if [[ $DRIVER != osmesa ]] && $(use classic || use opengl); then
-		# build & use osmesa even with GL
-		use osmesa && myconf+=" --enable-gl-osmesa"
-	fi
-
-	if use egl; then
-		myconf+=" --with-egl-platforms="
-		use X 			&& myconf+=",x11"
-		use drm 		&& myconf+=",drm"
-		use direct3d 		&& myconf+=",gdi"
-		use video_cards_fbdev 	&& myconf+=",fbdev"
+		if [[ $DRIVER != osmesa ]] && use classic; then
+			# build & use osmesa even with GL
+			use osmesa && myconf+=" --enable-gl-osmesa"
+		fi
+	else
+		use dri && myconf+=" --with-dri-drivers="
 	fi
 
 	# configure gallium support
@@ -319,6 +310,14 @@ src_configure() {
 		fi
 	fi
 
+	if use egl; then
+		myconf+=" --with-egl-platforms="
+		use X 			&& myconf+=",x11"
+		use drm 		&& myconf+=",drm"
+		use direct3d 		&& myconf+=",gdi"
+		use video_cards_fbdev 	&& myconf+=",fbdev"
+	fi
+
 	# Get rid of glut includes
 	rm -f "${S}"/include/GL/glut*h
 	myconf+=" --disable-glut"
@@ -326,10 +325,12 @@ src_configure() {
 	# cheat for x86_64 systems
 	use multilib && myconf+=" --enable-32-bit --enable-64-bit"
 
-	econf $(use_enable debug) \
+	econf $(use_with X x) \
+	      $(use_enable debug) \
 	      $(use_enable selinux) \
 	      $(use_enable static) \
 	      $(use_enable nptl glx-tls) \
+	      $(use_enable xcb) \
 	      $(use_enable motif glw) \
 	      $(use_enable motif) \
 	      $(use_enable !pic asm) \

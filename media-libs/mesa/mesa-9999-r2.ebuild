@@ -135,6 +135,11 @@ pkg_setup() {
 		die "classic drivers requsted without dri"
 	fi
 
+	if ! use classic && use osmesa; then
+		eerror "osmesa can be only built with classic stack and with or without dri"
+		die "osmesa requested without old graphic stack"
+	fi
+
 	if use gles && ! use gallium && ! use xcb; then
 		eerror "for use of gles you should enable gallium or xcb"
 		die "gles requested without gallium or xcb"
@@ -259,9 +264,6 @@ src_prepare() {
 src_configure() {
 	local myconf
 
-	myconf+=" $(use_with X x)"
-	use X && myconf+=" $(use_enable xcb)"
-
 	local DRIVER="osmesa"
 	use X 			&& DRIVER="xlib"
 	use dri 		&& DRIVER="dri"
@@ -272,7 +274,7 @@ src_configure() {
 	fi
 
 	if use classic && use dri; then
-	# Configurable DRI drivers
+		# Configurable DRI drivers
 		driver_enable swrast
 
 		# Intel code
@@ -312,19 +314,13 @@ src_configure() {
 			myconf+=" $(use_enable gles gles1)
 				  $(use_enable gles gles2)"
 		fi
-	fi
 
-	if [[ $DRIVER != osmesa ]] && $(use classic || use opengl); then
-		# build & use osmesa even with GL
-		use osmesa && myconf+=" --enable-gl-osmesa"
-	fi
-
-	if use egl; then
-		myconf+=" --with-egl-platforms="
-		use X 			&& myconf+=",x11"
-		use drm 		&& myconf+=",drm"
-		use direct3d 		&& myconf+=",gdi"
-		use video_cards_fbdev 	&& myconf+=",fbdev"
+		if [[ $DRIVER != osmesa ]] && use classic; then
+			# build & use osmesa even with GL
+			use osmesa && myconf+=" --enable-gl-osmesa"
+		fi
+	else
+		use dri && myconf+=" --with-dri-drivers="
 	fi
 
 	# configure gallium support
@@ -381,6 +377,14 @@ src_configure() {
 		fi
 	fi
 
+	if use egl; then
+		myconf+=" --with-egl-platforms="
+		use X 			&& myconf+=",x11"
+		use drm 		&& myconf+=",drm"
+		use direct3d 		&& myconf+=",gdi"
+		use video_cards_fbdev 	&& myconf+=",fbdev"
+	fi
+
 	# Get rid of glut includes
 	rm -f "${S}"/include/GL/glut*h
 	myconf+=" --disable-glut"
@@ -388,13 +392,14 @@ src_configure() {
 	if use amd64; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
-		econf $(use X && echo "--with-x-libraries=/usr/$(get_libdir)") \
-			--enable-32-bit \
+		econf 	--enable-32-bit \
 			--disable-64-bit \
+			$(use_with X x) \
 			$(use_enable debug) \
 			$(use_enable selinux) \
 			$(use_enable static) \
 			$(use_enable nptl glx-tls) \
+			$(use_enable xcb) \
 			$(use_enable motif glw) \
 			$(use_enable motif) \
 			$(use_enable !pic asm) \
@@ -407,10 +412,12 @@ src_configure() {
 		cd "${S}"
 	fi
 
-	econf $(use_enable debug) \
+	econf $(use_with X x) \
+	      $(use_enable debug) \
 	      $(use_enable selinux) \
 	      $(use_enable static) \
 	      $(use_enable nptl glx-tls) \
+	      $(use_enable xcb) \
 	      $(use_enable motif glw) \
 	      $(use_enable motif) \
 	      $(use_enable !pic asm) \
