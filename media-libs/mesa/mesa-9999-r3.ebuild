@@ -71,7 +71,7 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 	xcb? 	( x11-libs/libX11[xcb] )
 	llvm? 	( sys-devel/llvm
 		  x86? ( dev-libs/udis86 )
-		  amd64? ( dev-libs/udis86 ) )
+		  amd64? ( dev-libs/udis86[pic] ) )
 	motif? 	( x11-libs/openmotif )
 	doc? 	( dev-libs/libxml2[python]
 		  app-doc/opengl-manpages )
@@ -377,7 +377,7 @@ pkg_postinst() {
 	echo
 	eselect opengl set --use-old ${OPENGL_DIR}
 	# Select classic/gallium drivers
-	eselect mesa set --auto
+	#eselect mesa set --auto
 }
 
 # $1 - VIDEO_CARDS flag

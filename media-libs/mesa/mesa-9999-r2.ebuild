@@ -71,7 +71,7 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 	xcb? 	( x11-libs/libX11[xcb] )
 	llvm? 	( sys-devel/llvm
 		  x86? ( dev-libs/udis86 )
-		  amd64? ( dev-libs/udis86 ) )
+		  amd64? ( dev-libs/udis86[pic] ) )
 	motif? 	( x11-libs/openmotif )
 	doc? 	( dev-libs/libxml2[python]
 		  app-doc/opengl-manpages )
@@ -444,6 +444,7 @@ src_install() {
 	fi
 
 	base_src_install
+	dynamic_libgl_install
 
 	# Save the glsl-compiler for later use
 	if ! tc-is-cross-compiler; then
@@ -459,10 +460,7 @@ src_install() {
 
 pkg_postinst() {
 	# Switch to the xorg implementation.
-	echo
 	eselect opengl set --use-old ${OPENGL_DIR}
-	# Select classic/gallium drivers
-	eselect mesa set --auto
 }
 
 # $1 - VIDEO_CARDS flag
