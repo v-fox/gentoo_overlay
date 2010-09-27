@@ -11,13 +11,16 @@ inherit x-modular toolchain-funcs flag-o-matic
 DESCRIPTION="X.Org X11 library"
 
 KEYWORDS="~alpha ~amd64 ~arm ~hppa ~ia64 ~m68k ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~x86-fbsd"
-IUSE="lint ipv6 nls xcb +threads +local +tcp +unix +secure-rpc"
+IUSE="lint ipv6 nls +threads local +tcp +unix +secure-rpc +xkb +xcms"
 RDEPEND=">=x11-libs/xtrans-1.0.1
 	x11-libs/libXau
 	x11-libs/libXdmcp
 	x11-proto/kbproto
 	>=x11-proto/xproto-7.0.6
-	xcb? ( >=x11-libs/libxcb-1.0 )"
+	>=x11-libs/libxcb-1.0
+	xkb? ( x11-libs/libxkbfile
+		x11-libs/libxkbui )
+	xcms? ( x11-apps/xcmsdb )"
 DEPEND="${RDEPEND}
 	x11-proto/xf86bigfontproto
 	x11-proto/bigreqsproto
@@ -28,7 +31,8 @@ DEPEND="${RDEPEND}
 
 CONFIGURE_OPTIONS="$(use_enable lint lint-library)
 		$(use_enable ipv6)
-		$(use_enable xcb)
+		$(use_enable xcms)
+		$(use_enable xkb)
 		$(use_enable nls xlocale)
 		$(use_enable nls loadable-i18n)
 		$(use_enable threads xthreads)
