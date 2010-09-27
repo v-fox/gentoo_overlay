@@ -430,12 +430,12 @@ src_compile() {
 	if use amd64; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
-		emake -j1 || die "doing 32bit stuff failed"
+		emake || die "doing 32bit stuff failed"
 		multilib_toolchain_setup amd64
 	fi
 
 	cd "${S}"
-	emake -j1 || die
+	emake || die
 }
 
 src_install() {

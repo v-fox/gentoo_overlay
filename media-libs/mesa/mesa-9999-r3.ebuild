@@ -108,7 +108,8 @@ QA_WX_LOAD="usr/lib*/opengl/xorg-x11/lib/libGL.so*"
 QA_EXECSTACK="usr/lib*/libOpenVG.so*"
 QA_WX_LOAD="usr/lib*/libOpenVG.so*"
 
-MAKEOPTS="${MAKEOPTS/-j?/-j1}"
+# use this when devs use bad build-time dependency definitions in Makefiles
+#MAKEOPTS="${MAKEOPTS/-j?/-j1}"
 
 pkg_setup() {
 	if use classic && ! use dri; then
