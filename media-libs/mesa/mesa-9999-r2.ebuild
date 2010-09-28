@@ -89,10 +89,10 @@ done
 
 DEPEND="${RDEPEND}
 	!<=x11-proto/xf86driproto-2.0.3
+	x11-misc/makedepend
 	>=x11-proto/glproto-1.4.11
 	>=x11-proto/dri2proto-2.2
-	X? ( x11-misc/makedepend
-		x11-proto/inputproto
+	X? ( x11-proto/inputproto
 		x11-proto/xextproto
 		!hppa? ( x11-proto/xf86driproto )
 		>=x11-proto/xf86vidmodeproto-2.3
@@ -431,12 +431,12 @@ src_compile() {
 	if use amd64; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
-		emake -j1 || die "doing 32bit stuff failed"
+		emake || die "doing 32bit stuff failed"
 		multilib_toolchain_setup amd64
 	fi
 
 	cd "${S}"
-	emake -j1 || die
+	emake || die
 }
 
 src_install() {

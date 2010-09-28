@@ -89,10 +89,10 @@ done
 
 DEPEND="${RDEPEND}
 	!<=x11-proto/xf86driproto-2.0.3
+	x11-misc/makedepend
 	>=x11-proto/glproto-1.4.11
 	>=x11-proto/dri2proto-2.2
-	X? ( x11-misc/makedepend
-		x11-proto/inputproto
+	X? ( x11-proto/inputproto
 		x11-proto/xextproto
 		!hppa? ( x11-proto/xf86driproto )
 		>=x11-proto/xf86vidmodeproto-2.3
@@ -109,7 +109,8 @@ QA_WX_LOAD="usr/lib*/opengl/xorg-x11/lib/libGL.so*"
 QA_EXECSTACK="usr/lib*/libOpenVG.so*"
 QA_WX_LOAD="usr/lib*/libOpenVG.so*"
 
-MAKEOPTS="${MAKEOPTS/-j?/-j1}"
+# use this when devs use bad build-time dependency definitions in Makefiles
+#MAKEOPTS="${MAKEOPTS/-j?/-j1}"
 
 pkg_setup() {
 	if use classic && ! use dri; then
