@@ -104,10 +104,14 @@ S="${WORKDIR}/${MY_P}"
 
 # It is slow without texrels, if someone wants slow
 # mesa without texrels +pic use is worth the shot
-QA_EXECSTACK="usr/lib*/opengl/xorg-x11/lib/libGL.so*"
-QA_WX_LOAD="usr/lib*/opengl/xorg-x11/lib/libGL.so*"
-QA_EXECSTACK="usr/lib*/libOpenVG.so*"
-QA_WX_LOAD="usr/lib*/libOpenVG.so*"
+QA_EXECSTACK="usr/lib*/opengl/xorg-x11/lib/libGL.so*
+		usr/lib*/libOpenVG.so*
+		usr/lib*/libGLESv1*.so*
+		usr/lib*/libGLESv2.so*"
+QA_WX_LOAD="usr/lib*/opengl/xorg-x11/lib/libGL.so*
+		usr/lib*/libOpenVG.so*
+		usr/lib*/libGLESv1*.so*
+		usr/lib*/libGLESv2.so"
 
 # use this when devs use bad build-time dependency definitions in Makefiles
 #MAKEOPTS="${MAKEOPTS/-j?/-j1}"
