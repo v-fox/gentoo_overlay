@@ -1,0 +1,12 @@
+Index: Source/Core/DolphinWX/Src/SConscript
+===================================================================
+--- Source/Core/DolphinWX/Src/SConscript	(revision 6244)
++++ Source/Core/DolphinWX/Src/SConscript	(working copy)
+@@ -105,6 +105,6 @@
+ 
+ if env['HAVE_WX']:
+ 	env.StaticLibrary(env['local_libs'] + 'memcard', memcardfiles)
+-	env.Program(exeGUI, files, LIBS = env['LIBS'] + wxlibs + libs)
++	env.Program(exeGUI, files, LIBS = wxlibs + env['LIBS'] + libs)
+ else:
+ 	env.Program(exeNoGUI, files, LIBS = env['LIBS'] + libs)
