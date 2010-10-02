@@ -14,11 +14,11 @@ ESVN_PROJECT="dolphin-emu-read-only"
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~x86 ~amd64 ~ppc ~ppc64"
-IUSE="doc openal opencl +wxwidgets portaudio"
+IUSE="doc openal opencl portaudio +wxwidgets"
+#RESTRICT="strip"
 RESTRICT=""
 
-RDEPEND="virtual/opengl
-	dev-libs/lzo
+RDEPEND="dev-libs/lzo
 	>=media-libs/glew-1.5
 	media-libs/jpeg
 	media-libs/libao
@@ -28,11 +28,9 @@ RDEPEND="virtual/opengl
 	x11-libs/cairo
 	x11-libs/libXxf86vm
 	x11-libs/libXext
-	wxwidgets? ( >=x11-libs/wxGTK-2.8 )
+	>=x11-libs/wxGTK-2.8
+	virtual/opengl
 	openal? ( media-libs/openal )
-	opencl? ( || ( 	media-libs/mesa[opencl]
-			x11-drivers/ati-drivers
-			x11-drivers/nvidia-drivers ) )
 	portaudio? ( media-libs/portaudio )"
 DEPEND="${RDEPEND}
 	dev-util/scons
@@ -40,18 +38,23 @@ DEPEND="${RDEPEND}
 	media-gfx/nvidia-cg-toolkit"
 
 src_prepare() {
-	epatch "${FILESDIR}/${P}"_fix_build.patch
-
 	# set installation paths
-	sed -e "s;/share/dolphin-emu;/data;" \
-		-e "s;/lib/dolphin-emu;/lib/plugins;" \
-		-e "s; + '/bin';;" \
+	sed -e "s;env\['prefix'\] + '/bin';'${GAMES_BINDIR}';" \
+		-e "s;env\['prefix'\] + \"/share/dolphin-emu\";'${GAMES_DATADIR}/${PN}';" \
+		-e "s;env\['prefix'\] + '/lib/dolphin-emu';'$(games_get_libdir)/${PN}';" \
+		-e "s;env\['prefix'\] + '/lib/';'$(games_get_libdir)/';" \
 		-i "${S}/SConstruct" \
 		|| die "sed path update 1 failed"
 
-	sed -e 's;LIBS_DIR "dolphin-emu";LIBS_DIR "plugins";' \
-		-i "${S}/Source/Core/Common/Src/CommonPaths.h" \
-		|| die "sed path update 2 failed"
+	# fix wxGTK linking with --as-needed
+	sed -e "s;env\['LIBS'\] + wxlibs + libs;wxlibs + env\['LIBS'\] + libs;" \
+		-i "${S}/Source/Core/DolphinWX/Src/SConscript" \
+		|| die "sed wxGTK link update"
+	#sed -e "s;env\['LIBS'\] + wxlibs + libs;wxlibs + env\['LIBS'\] + wxlibs2 + libs;" \
+	#	-e "s;wxlibs = \[ 'debwx', 'debugger_ui_util', 'inputuicommon', 'memcard' \];wxlibs = [ 'debwx' ]\n\twxlibs2 = \[ 'debugger_ui_util', 'inputuicommon', 'memcard' \];" \
+	#	-i "${S}/Source/Core/DolphinWX/Src/SConscript" \
+	#	|| die "sed wxGTK link update"
+
 }
 
 src_compile() {
@@ -62,7 +65,7 @@ src_compile() {
 		nowx=$(use wxwidgets && echo "false" || echo "true") \
 		opencl=$(use opencl && echo "true" || echo "false") \
 		install=global \
-		prefix="${GAMES_DATADIR}/${PN}" \
+		prefix="/usr" \
 		destdir="${D}" \
 		shared_glew=true \
 		shared_lzo=true \
@@ -70,15 +73,18 @@ src_compile() {
 		shared_zlib=true \
 		shared_sfml=false \
 		shared_soil=false \
-		verbose=true \
+		verbose=false \
 		|| die "scons build failed"
-
 }
 
 src_install() {
 	# copy files to target installation directory
 	cd "${S}"
-	scons install
+	scons install || die "scons install failed"
+
+	# set binary name
+	local binary="${PN}"
+	use wxwidgets || binary+="-nogui"
 
 	# install documentation as appropriate
 	dodoc Readme.txt
@@ -86,12 +92,8 @@ src_install() {
 		doins -r docs
 	fi
 
-	# set binary name
-	use wxwidgets \
-		&& binary="${PN}" \
-		|| binary="${PN}-nogui"
 	# create bin wrapper
-	games_make_wrapper "${PN}" "${GAMES_DATADIR}/${PN}/${binary}"
+	#games_make_wrapper "${PN}" "${GAMES_DATADIR}/${PN}/${binary}"
 
 	# create menu entry for GUI builds
 	if use wxwidgets; then
@@ -108,7 +110,7 @@ pkg_postinst() {
 		ewarn "If you need to use your microphone for a game, rebuild with USE=portaudio"
 		echo
 	fi
-	if use wxwidgets; then
+	if ! use wxwidgets; then
 		ewarn "Note: It is not currently possible to configure Dolphin without the GUI."
 		ewarn "Rebuild with USE=wxwidgets to enable the GUI if needed."
 		echo
