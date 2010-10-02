@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/media-libs/mesa/mesa-7.0.2.ebuild,v 1.6 2007/11/16 18:16:30 dberkholz Exp $
 
-EAPI=2
+EAPI=3
 
 EGIT_REPO_URI="git://anongit.freedesktop.org/mesa/mesa"
 
@@ -48,7 +48,7 @@ done
 
 IUSE="${IUSE_VIDEO_CARDS}
 	debug doc direct3d gles llvm openvg osmesa pic motif selinux static X kernel_FreeBSD
-	+classic +dri +egl +gallium +glu +drm +nptl +opengl +xcb"
+	+classic +dri +egl +gallium +glu +glut +drm +nptl +opengl +xcb"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.21"
 # keep correct libdrm and dri2proto dep
@@ -56,6 +56,7 @@ LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.21"
 RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 	dev-libs/expat
 	sys-libs/talloc
+	glut? ( !media-libs/freeglut )
 	direct3d? ( app-emulation/wine )
 	X? 	( !<x11-base/xorg-server-1.7
 		  !<=x11-proto/xf86driproto-2.0.3
@@ -113,13 +114,36 @@ QA_WX_LOAD="usr/lib*/opengl/xorg-x11/lib/libGL.so*
 		usr/lib*/libGLESv1*.so*
 		usr/lib*/libGLESv2.so"
 
-# use this when devs use bad build-time dependency definitions in Makefiles
-#MAKEOPTS="${MAKEOPTS/-j?/-j1}"
+dynamic_libgl_install() {
+	# Move libGL and others from /usr/lib to /usr/lib/opengl/blah/lib
+	# because user can eselect desired GL provider.
+	ebegin "Moving libGL and friends for dynamic switching"
+		dodir /usr/$(get_libdir)/opengl/${OPENGL_DIR}/{lib,extensions,include}
+		local x
+		for x in "${D}"/usr/$(get_libdir)/libGL.{la,a,so*}; do
+			if [ -f ${x} -o -L ${x} ]; then
+				mv -f "${x}" "${D}"/usr/$(get_libdir)/opengl/${OPENGL_DIR}/lib \
+					|| die "Failed to move ${x}"
+			fi
+		done
+		for x in "${D}"/usr/include/GL/{gl.h,glx.h,glext.h,glxext.h}; do
+			if [ -f ${x} -o -L ${x} ]; then
+				mv -f "${x}" "${D}"/usr/$(get_libdir)/opengl/${OPENGL_DIR}/include \
+					|| die "Failed to move ${x}"
+			fi
+		done
+	eend $?
+}
 
 pkg_setup() {
 	if use classic && ! use dri; then
 		eerror "classic drivers stack are in need of dri"
 		die "classic drivers requsted without dri"
+	fi
+
+	if ! use classic && use osmesa; then
+		eerror "osmesa can be only built with classic stack and with or without dri"
+		die "osmesa requested without old graphic stack"
 	fi
 
 	if use gles && ! use gallium && ! use xcb; then
@@ -166,9 +190,52 @@ pkg_setup() {
 
 src_unpack() {
 	[[ $PV = 9999* ]] && git_src_unpack || base_src_unpack
+	cd "${S}"
+
+	if use amd64; then
+		cd "${WORKDIR}"
+		mkdir 32
+		mv "${MY_P}" 32/ || die
+		cd "${WORKDIR}"
+		[[ $PV = 9999* ]] && EGIT_OFFLINE=1 git_src_unpack || base_src_unpack
+	fi
 }
 
 src_prepare() {
+	if use amd64; then
+		cd "${WORKDIR}"/32/${MY_P} || die
+		# apply patches
+		if [[ ${PV} != 9999* && -n ${SRC_PATCHES} ]]; then
+			EPATCH_FORCE="yes" \
+			EPATCH_SOURCE="${WORKDIR}/patches" \
+			EPATCH_SUFFIX="patch" \
+			epatch
+		fi
+		# FreeBSD 6.* doesn't have posix_memalign().
+		if [[ ${CHOST} == *-freebsd6.* ]]; then
+			sed -i \
+				-e "s/-DHAVE_POSIX_MEMALIGN//" \
+				configure.ac || die
+		fi
+
+		# In order for mesa to complete it's build process we need to use a tool
+		# that it compiles. When we cross compile this clearly does not work
+		# so we require mesa to be built on the host system first. -solar
+		if tc-is-cross-compiler; then
+			sed -i -e "s#^GLSL_CL = .*\$#GLSL_CL = glsl_compiler#g" \
+				"${WORKDIR}/32/${MY_P}"/src/mesa/shader/slang/library/Makefile || die
+		fi
+
+		[[ $PV = 9999* ]] && git_src_prepare
+		base_src_prepare
+		eautoreconf
+
+		# remove glew headers. We preffer to use system ones
+		rm -f "${WORKDIR}/32/${MY_P}"/include/GL/wglew.h \
+			|| die "Removing glew includes failed."
+			cd "${S}"
+	fi
+
 	# apply patches
 	if [[ ${PV} != 9999* && -n ${SRC_PATCHES} ]]; then
 		EPATCH_FORCE="yes" \
@@ -196,7 +263,7 @@ src_prepare() {
 	eautoreconf
 
 	# remove glew headers. We preffer to use system ones
-	rm -f "${S}"/include/GL/{wglew,glut}.h \
+	rm -f "${S}"/include/GL/wglew.h \
 		|| die "Removing glew includes failed."
 }
 
@@ -324,12 +391,29 @@ src_configure() {
 		use video_cards_fbdev 	&& myconf+=",fbdev"
 	fi
 
-	# Get rid of glut includes
-	rm -f "${S}"/include/GL/glut*h
-	myconf+=" --disable-glut"
-
-	# cheat for x86_64 systems
-	use multilib && myconf+=" --enable-32-bit --enable-64-bit"
+	if use amd64; then
+		multilib_toolchain_setup x86
+		cd "${WORKDIR}/32/${MY_P}"
+		econf 	--enable-32-bit \
+			--disable-64-bit \
+			$(use_with X x) \
+			$(use_enable debug) \
+			$(use_enable selinux) \
+			$(use_enable static) \
+			$(use_enable nptl glx-tls) \
+			$(use_enable xcb) \
+			$(use_enable motif glw) \
+			$(use_enable motif) \
+			$(use_enable !pic asm) \
+			$(use_enable egl) \
+			$(use_enable glu) \
+			$(use_enable glut) \
+			${myconf} \
+			--disable-gallium-llvm || die "doing 32bit stuff failed"
+		multilib_toolchain_setup amd64
+		myconf+=" --enable-64-bit --disable-32-bit"
+		cd "${S}"
+	fi
 
 	econf $(use_with X x) \
 	      $(use_enable debug) \
@@ -342,49 +426,50 @@ src_configure() {
 	      $(use_enable !pic asm) \
 	      $(use_enable egl) \
 	      $(use_enable glu) \
+	      $(use_enable glut) \
 	      ${myconf} || die
 }
 
+src_compile() {
+	if use amd64; then
+		multilib_toolchain_setup x86
+		cd "${WORKDIR}/32/${MY_P}"
+		emake || die "doing 32bit stuff failed"
+		multilib_toolchain_setup amd64
+	fi
+
+	cd "${S}"
+	emake || die
+}
+
 src_install() {
+	if use amd64; then
+		cd "${WORKDIR}/32/${MY_P}"
+		multilib_toolchain_setup x86
+		emake \
+			DESTDIR="${D}" \
+			install || die "Installation of 32bit stuff failed"
+		dynamic_libgl_install
+		multilib_toolchain_setup amd64
+		cd "${S}"
+	fi
+
 	base_src_install
+	dynamic_libgl_install
 
 	# Save the glsl-compiler for later use
 	if ! tc-is-cross-compiler; then
 		dobin "${S}"/src/glsl/glsl_compiler || die
 	fi
 	# Remove redundant headers
-	# GLUT thing
-	rm -f "${D}"/usr/include/GL/glut*.h || die "Removing glut include failed."
 	# Glew includes
 	rm -f "${D}"/usr/include/GL/{glew,glxew,wglew}.h \
 		|| die "Removing glew includes failed."
-
-	# Move libGL and others from /usr/lib to /usr/lib/opengl/blah/lib
-	# because user can eselect desired GL provider.
-	ebegin "Moving libGL and friends for dynamic switching"
-		dodir /usr/$(get_libdir)/opengl/${OPENGL_DIR}/{lib,extensions,include}
-		local x
-		for x in "${D}"/usr/$(get_libdir)/libGL.{la,a,so*}; do
-			if [ -f ${x} -o -L ${x} ]; then
-				mv -f "${x}" "${D}"/usr/$(get_libdir)/opengl/${OPENGL_DIR}/lib \
-					|| die "Failed to move ${x}"
-			fi
-		done
-		for x in "${D}"/usr/include/GL/{gl.h,glx.h,glext.h,glxext.h}; do
-			if [ -f ${x} -o -L ${x} ]; then
-				mv -f "${x}" "${D}"/usr/$(get_libdir)/opengl/${OPENGL_DIR}/include \
-					|| die "Failed to move ${x}"
-			fi
-		done
-	eend $?
 }
 
 pkg_postinst() {
 	# Switch to the xorg implementation.
-	echo
 	eselect opengl set --use-old ${OPENGL_DIR}
-	# Select classic/gallium drivers
-	#eselect mesa set --auto
 }
 
 # $1 - VIDEO_CARDS flag
