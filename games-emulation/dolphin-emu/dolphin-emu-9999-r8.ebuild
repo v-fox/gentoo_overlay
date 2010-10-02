@@ -14,24 +14,29 @@ ESVN_PROJECT="dolphin-emu-read-only"
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~x86 ~amd64 ~ppc ~ppc64"
-IUSE="doc openal opencl portaudio +wxwidgets"
+IUSE="doc openal opencl pulseaudio portaudio +wxwidgets"
 #RESTRICT="strip"
 RESTRICT=""
 
-RDEPEND="dev-libs/lzo
-	>=media-libs/glew-1.5
+RDEPEND="sys-libs/zlib
 	media-libs/jpeg
-	media-libs/libao
-	>=media-libs/libsdl-1.2[joystick]
-	net-wireless/bluez
-	sys-libs/zlib
-	x11-libs/cairo
+	virtual/opengl
+	>=media-libs/libsdl-1.2
 	x11-libs/libXxf86vm
 	x11-libs/libXext
-	>=x11-libs/wxGTK-2.8
-	virtual/opengl
+	>=media-libs/glew-1.5
+	x11-libs/cairo
+	media-libs/libao
+	media-libs/alsa-lib
+	|| ( net-wireless/bluez
+		net-wireless/bluez-libs )
 	openal? ( media-libs/openal )
-	portaudio? ( media-libs/portaudio )"
+	opencl? ( || ( 	media-libs/mesa[opencl]
+			x11-drivers/ati-drivers
+			x11-drivers/nvidia-drivers ) )
+	portaudio? ( media-libs/portaudio )
+	pulseaudio? ( media-sound/pulseaudio )
+	wxwidgets? ( >=x11-libs/wxGTK-2.8 )"
 DEPEND="${RDEPEND}
 	dev-util/scons
 	dev-util/pkgconfig
@@ -73,7 +78,7 @@ src_compile() {
 		shared_zlib=true \
 		shared_sfml=false \
 		shared_soil=false \
-		verbose=false \
+		verbose=true \
 		|| die "scons build failed"
 }
 
