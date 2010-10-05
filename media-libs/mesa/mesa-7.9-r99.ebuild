@@ -34,10 +34,10 @@ else
 		${SRC_PATCHES}"
 fi
 
-DESCRIPTION="GPU acceleration libraries for OpenGL, OpenVG, Direct3D and much more"
+DESCRIPTION="GPU acceleration libraries for OpenGL, OpenVG and much more"
 LICENSE="LGPL-2"
 SLOT="0"
-KEYWORDS=""
+KEYWORDS="alpha amd64 arm hppa ia64 ~mips ~ppc ~ppc64 sh sparc x86 ~x86-fbsd"
 
 INTEL_CARDS="i810 i915 i965 intel"
 RADEON_CARDS="r100 r200 r300 r600 radeon"
@@ -47,7 +47,7 @@ for card in ${VIDEO_CARDS}; do
 done
 
 IUSE="${IUSE_VIDEO_CARDS}
-	debug doc direct3d gles glut llvm openvg osmesa pic motif selinux static X kernel_FreeBSD
+	debug doc gles glut llvm openvg osmesa pic motif selinux static X kernel_FreeBSD
 	+classic +dri +egl +gallium +glu +drm +nptl +opengl +xcb"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.21"
@@ -57,7 +57,6 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 	dev-libs/expat
 	sys-libs/talloc
 	glut? ( !media-libs/freeglut )
-	direct3d? ( app-emulation/wine )
 	X? 	( !<x11-base/xorg-server-1.7
 		  !<=x11-proto/xf86driproto-2.0.3
 		  x11-libs/libX11
@@ -165,10 +164,8 @@ pkg_setup() {
 	fi
 
 	if ! use egl; then
-		ewarn "egl support is disabled ! egl is really must-have for modern systems"
-		ewarn "it will be better to enable it"
+		ewarn "egl support is disabled ! gles and openvg need it. they will fail without it"
 		use openvg 	&& die "openvg can't work without egl. failing..."
-		use direct3d 	&& die "direct3d can't work without egl. failing..."
 	fi
 
 	if use opengl && ! use classic && ! use gallium; then
@@ -177,8 +174,8 @@ pkg_setup() {
 		die "gallium or classic stuff is needed"
 	fi
 
-	if ! use gallium  && $(use openvg || use direct3d); then
-		eerror "openvg or direct3d state tracker was requested without actual gallium"
+	if ! use gallium  && use openvg; then
+		eerror "openvg state tracker was requested without actual gallium"
 		die "gallium missing"
 	fi
 
@@ -355,7 +352,6 @@ src_configure() {
 		myconf+=" --enable-gallium-swrast --with-state-trackers="
 		use opengl 	&& myconf+=",glx"
 		use egl 	&& myconf+=",egl"
-		use direct3d 	&& myconf+=",d3d1x"
 		use dri 	&& myconf+=",dri"
 		use openvg 	&& myconf+=",vega"
 		use X 		&& myconf+=",xorg"
@@ -398,7 +394,6 @@ src_configure() {
 		myconf+=" --with-egl-platforms="
 		use X 			&& myconf+=",x11"
 		use drm 		&& myconf+=",drm"
-		use direct3d 		&& myconf+=",gdi"
 		use video_cards_fbdev 	&& myconf+=",fbdev"
 	fi
 

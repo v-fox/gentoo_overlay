@@ -4,7 +4,7 @@
 
 EAPI=2
 
-inherit eutils autotools games
+inherit eutils autotools games toolchain-funcs
 
 MY_PN="${PN/-/}"
 DESCRIPTION="PCSX-Reloaded: a fork of PCSX, the discontinued Playstation emulator"
@@ -45,6 +45,9 @@ src_prepare() {
 
 	# fix icon and .desktop path
 	epatch "${FILESDIR}/${PN}-datadir.patch"
+
+	# fix crashing with -O3 and -fstrict-aliasing
+	append-flags -fno-strict-aliasing
 
 	# regenerate for changes to spread
 	eautoreconf
