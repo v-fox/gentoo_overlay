@@ -25,13 +25,12 @@ fi
 
 LICENSE="LGPL-2"
 SLOT="0"
-KEYWORDS=""
-IUSE="+egl direct3d gallium gles +glsl openvg"
+KEYWORDS="alpha amd64 arm hppa ia64 ~mips ppc ppc64 sh sparc x86 ~x86-fbsd ~x86-freebsd ~amd64-linux ~ia64-linux ~x86-linux"
+IUSE="+egl gles glsl openvg"
 
 RDEPEND="virtual/opengl
 	egl? ( media-libs/mesa[egl] )
 	gles? ( media-libs/mesa[egl,gles] )
-	direct3d? ( media-libs/mesa[egl,direct3d] )
 	openvg? ( || ( media-libs/mesa[egl,openvg]
 			media-libs/shivavg ) )"
 DEPEND="${RDEPEND}"
@@ -47,7 +46,7 @@ src_compile() {
 
 	emake -C src/xdemos glthreads glsync glxgears{,_pixmap} glxinfo glxswapcontrol  || die
 
-	if use egl || use gles || use direct3d || use openvg; then
+	if use egl || use gles || use openvg; then
 		emake -C src/egl/eglut || die
 	fi
 
@@ -66,10 +65,6 @@ src_compile() {
 	if use gles; then
 		emake -C src/egl/opengles1 gears{_screen,_x11} es1_info || die
 		emake -C src/egl/opengles2 es2gears || die
-	fi
-
-	if use direct3d; then
-		ewarn "nothing here yet"
 	fi
 
 	if use openvg; then
@@ -102,10 +97,6 @@ src_install() {
 		newbin src/egl/opengles1/gears_screen gles1gears_screen || die
 		newbin src/egl/opengles1/gears_x11 gles1gears_x11 || die
 		newbin src/egl/opengles2/es2gears gles2gears || die
-	fi
-
-	if use direct3d; then
-		ewarn "nothing here yet"
 	fi
 
 	if use openvg; then
