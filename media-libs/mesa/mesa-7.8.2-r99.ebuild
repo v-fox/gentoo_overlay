@@ -116,7 +116,7 @@ src_unpack() {
 	git_src_unpack
 	cd "${S}"
 
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"
 		mkdir 32
 		mv "${MY_P}" 32/ || die
@@ -127,7 +127,7 @@ src_unpack() {
 
 src_prepare() {
 	cd "${S}"
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"/32/${MY_P} || die
 		[[ ${CHOST} == *-freebsd6.* ]] && \
 			sed -i -e "s/-DHAVE_POSIX_MEMALIGN//" configure.ac
@@ -239,7 +239,7 @@ src_configure() {
 	use selinux && myconf="${myconf} --enable-selinux"
 	use static && myconf="${myconf} --enable-static"
 
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
 		econf $(use_with X x && echo "--with-x-libraries=/usr/$(get_libdir)") \
@@ -261,7 +261,7 @@ src_configure() {
 }
 
 src_compile() {
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
 		emake -j1 || die "doing 32bit stuff failed"
@@ -275,7 +275,7 @@ src_compile() {
 src_install() {
 	dodir /usr
 
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}/32/${MY_P}"
 		multilib_toolchain_setup x86
 		emake \

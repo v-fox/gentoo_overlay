@@ -191,7 +191,7 @@ src_unpack() {
 	[[ $PV = 9999* ]] && git_src_unpack || base_src_unpack
 	cd "${S}"
 
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"
 		mkdir 32
 		mv "${MY_P}" 32/ || die
@@ -201,7 +201,7 @@ src_unpack() {
 }
 
 src_prepare() {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"/32/${MY_P} || die
 		# apply patches
 		if [[ ${PV} != 9999* && -n ${SRC_PATCHES} ]]; then
@@ -394,7 +394,7 @@ src_configure() {
 	rm -f "${S}"/include/GL/glut*h
 	myconf+=" --disable-glut"
 
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
 		econf 	--enable-32-bit \
@@ -432,7 +432,7 @@ src_configure() {
 }
 
 src_compile() {
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
 		emake || die "doing 32bit stuff failed"
@@ -444,7 +444,7 @@ src_compile() {
 }
 
 src_install() {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}/32/${MY_P}"
 		multilib_toolchain_setup x86
 		emake \
