@@ -50,16 +50,6 @@ src_prepare() {
 		-e "s;env\['prefix'\] + '/lib/';'$(games_get_libdir)/';" \
 		-i "${S}/SConstruct" \
 		|| die "sed path update 1 failed"
-
-	# fix wxGTK linking with --as-needed
-	sed -e "s;env\['LIBS'\] + wxlibs + libs;wxlibs + env\['LIBS'\] + libs;" \
-		-i "${S}/Source/Core/DolphinWX/Src/SConscript" \
-		|| die "sed wxGTK link update"
-	#sed -e "s;env\['LIBS'\] + wxlibs + libs;wxlibs + env\['LIBS'\] + wxlibs2 + libs;" \
-	#	-e "s;wxlibs = \[ 'debwx', 'debugger_ui_util', 'inputuicommon', 'memcard' \];wxlibs = [ 'debwx' ]\n\twxlibs2 = \[ 'debugger_ui_util', 'inputuicommon', 'memcard' \];" \
-	#	-i "${S}/Source/Core/DolphinWX/Src/SConscript" \
-	#	|| die "sed wxGTK link update"
-
 }
 
 src_compile() {
