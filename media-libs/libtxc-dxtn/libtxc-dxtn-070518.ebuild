@@ -19,7 +19,7 @@ DEPEND="${RDEPEND}"
 S="${WORKDIR}/${MY_PN}"
 
 src_unpack() {
-	if use amd64; then
+	if use multilib; then
 		unpack ${A}
 		mkdir 32
 		mv "${MY_PN}" 32/ || die
@@ -32,7 +32,7 @@ src_unpack() {
 src_compile() {
 	emake OPT_CFLAGS="${CFLAGS}" || die
 
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}/32/${MY_PN}" || die
 		multilib_toolchain_setup x86
 		emake OPT_CFLAGS="${CFLAGS}" || die "making 32bit lib failed"
@@ -40,7 +40,7 @@ src_compile() {
 }
 
 src_install() {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}/32/${MY_PN}" || die
 		emake DESTDIR="${D}" install || die "emake install for 32bit lib failed"
 		cd "${S}"

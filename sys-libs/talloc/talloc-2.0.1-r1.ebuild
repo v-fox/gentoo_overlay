@@ -26,7 +26,7 @@ src_unpack() {
         unpack "${A}"
         cd "${S}"
 
-        if use amd64; then
+        if use multilib; then
                 cd "${WORKDIR}"
                 mkdir 32
                 mv "${P}" 32/ || die
@@ -37,7 +37,7 @@ src_unpack() {
 
 src_prepare() {
         cd "${S}"
-        if use amd64; then
+        if use multilib; then
                 cd "${WORKDIR}"/32/${P} || die
 		epatch "${FILESDIR}/${PN}-2.0.0-without-doc.patch"
 		epatch "${FILESDIR}/${P}-respect-ldflags.patch"
@@ -57,7 +57,7 @@ src_prepare() {
 }
 
 src_configure() {
-        if use amd64; then
+        if use multilib; then
                 multilib_toolchain_setup x86
                 cd "${WORKDIR}/32/${P}"
 		if ! use swig ; then
@@ -103,7 +103,7 @@ src_configure() {
 }
 
 src_compile() {
-        if use amd64; then
+        if use multilib; then
                 multilib_toolchain_setup x86
                 cd "${WORKDIR}/32/${P}"
                 emake shared-build || die "32 bit emake shared-build failed"
@@ -115,7 +115,7 @@ src_compile() {
 }
 
 src_install() {
-        if use amd64; then
+        if use multilib; then
                 cd "${WORKDIR}/32/${P}"
                 multilib_toolchain_setup x86
 		emake DESTDIR="${D}" install || die "32 bit emake install failed"

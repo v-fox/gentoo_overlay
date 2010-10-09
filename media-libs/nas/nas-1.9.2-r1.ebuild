@@ -29,7 +29,7 @@ DEPEND="${RDEPEND}
 src_unpack() {
 	unpack ${A}
 
-	if use amd64; then
+	if use multilib; then
 		mkdir 32
 		mv "${P}" 32/ || die
 		unpack ${A}
@@ -37,7 +37,7 @@ src_unpack() {
 }
 
 src_compile() {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}/32/${P}" || die
 		multilib_toolchain_setup x86
 		xmkmf || die "xmkmf failed"
@@ -71,7 +71,7 @@ src_compile() {
 }
 
 src_install () {
-	if use amd64; then
+	if use multilib; then
 		dodir /usr/lib32
 		cp -a "${WORKDIR}/32/${P}"/lib/audio/libaudio.so* "${D}"/usr/lib32 || die
 	fi

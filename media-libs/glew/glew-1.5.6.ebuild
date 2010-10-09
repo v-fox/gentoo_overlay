@@ -2,21 +2,24 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: $
 
+EAPI=3
 inherit eutils multilib toolchain-funcs
 
 DESCRIPTION="The OpenGL Extension Wrangler Library"
 HOMEPAGE="http://glew.sourceforge.net"
-SRC_URI="mirror://sourceforge/${PN}/${P}-src.tgz"
+SRC_URI="mirror://sourceforge/${PN}/${P}.tgz"
 
-LICENSE="BSD GLX SGI-B GPL-2"
+LICENSE="BSD MIT"
 SLOT="0"
-KEYWORDS="~alpha ~amd64 ~hppa ~ia64 ~ppc ~ppc64 ~sparc ~x86 ~x86-fbsd"
+KEYWORDS="~alpha ~amd64 ~arm ~hppa ~ia64 ~mips ~ppc ~ppc64 ~sh ~sparc ~x86 ~x86-fbsd ~x86-freebsd ~amd64-linux ~ia64-linux ~x86-linux ~sparc-solaris ~x64-solaris ~x86-solaris"
 IUSE=""
 
 DEPEND="virtual/opengl
-	virtual/glu"
-
-S=${WORKDIR}/${PN}
+	virtual/glu
+	x11-libs/libXmu
+	x11-libs/libXi
+	x11-libs/libXext
+	x11-libs/libX11"
 
 src_unpack() {
 	unpack ${A}
@@ -29,17 +32,17 @@ src_compile(){
 	if use amd64 && use multilib; then
 		cd "${WORKDIR}"
 		mkdir 32bit 64bit
-		cp -r "${PN}" 32bit/
-		cp -r "${PN}" 64bit/
+		cp -r "${P}" 32bit/
+		cp -r "${P}" 64bit/
 		S="${WORKDIR}"
-		cd 32bit/${PN}
+		cd 32bit/${P}
 		pwd
 		multilib_toolchain_setup x86
 		emake LD="$(tc-getCC) ${LDFLAGS}" CC="$(tc-getCC)" \
 			POPT="${CFLAGS}" M_ARCH="" AR="$(tc-getAR)" \
 			|| die "emake failed."
 		multilib_toolchain_setup amd64
-		cd "${WORKDIR}/64bit/${PN}"
+		cd "${WORKDIR}/64bit/${P}"
 	fi
 	emake LD="$(tc-getCC) ${LDFLAGS}" CC="$(tc-getCC)" \
 		POPT="${CFLAGS}" M_ARCH="" AR="$(tc-getAR)" \
@@ -48,16 +51,16 @@ src_compile(){
 
 src_install() {
 	if use amd64 && use multilib; then
-		cd "${WORKDIR}/32bit/${PN}"
+		cd "${WORKDIR}/32bit/${P}"
 		multilib_toolchain_setup x86
 		emake GLEW_DEST="${D}/usr" LIBDIR="${D}/usr/$(get_libdir)" \
 			M_ARCH="" install || die "emake install failed."
 		multilib_toolchain_setup amd64
-		cd "${WORKDIR}/64bit/${PN}"
+		cd "${WORKDIR}/64bit/${P}"
 	fi
 	emake GLEW_DEST="${D}/usr" LIBDIR="${D}/usr/$(get_libdir)" \
 		M_ARCH="" install || die "emake install failed."
 
-	dodoc README.txt
+	dodoc doc/*.txt README.txt TODO.txt
 	dohtml doc/*.{html,css,png,jpg}
 }

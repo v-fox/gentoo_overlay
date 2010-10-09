@@ -45,7 +45,7 @@ src_unpack() {
 	sed -i -e '/C\(XX\)\?FLAGS=/s:@C\(XX\)\?FLAGS@::' \
 		"${S}/fltk-config.in" || die "unable to sed out compile flags"
 
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"
 		mkdir 32
 		mv "${P}" 32/ || die
@@ -86,7 +86,7 @@ src_compile() {
 	export C_INCLUDE_PATH="${C_INCLUDE_PATH}:/usr/include/freetype2"
 	export CPLUS_INCLUDE_PATH="${CPLUS_INCLUDE_PATH}:/usr/include/freetype2"
 
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}"
 		econf \
@@ -107,7 +107,7 @@ src_compile() {
 }
 
 src_install() {
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}"
 		einstall \
@@ -128,7 +128,7 @@ src_install() {
 
 	dodoc CHANGES README
 
-	if use amd64; then
+	if use multilib; then
 		echo "LDPATH=/usr/lib32/fltk-${SLOT}:/usr/lib64/fltk-${SLOT}" > 99fltk-${SLOT}
 		else
 		echo "LDPATH=${LIBDIR}" > 99fltk-${SLOT}

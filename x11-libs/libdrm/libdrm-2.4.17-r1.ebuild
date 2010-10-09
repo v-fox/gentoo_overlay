@@ -26,7 +26,7 @@ CONFIGURE_OPTIONS="	$(use_enable video_cards_nouveau nouveau-experimental-api)
 			$(use_enable video_cards_radeon radeon-experimental-api)"
 
 src_unpack () {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"
 		mkdir 32
 		unpack "${A}"
@@ -42,7 +42,7 @@ src_prepare() {
 		# If possible, generate configure if it doesn't exist
 		if [ -f "./configure.ac" ]
 		then
-			if use amd64; then
+			if use multilib; then
 				multilib_toolchain_setup x86
 				cd "${WORKDIR}/32/${P}"
 				eautoreconf
@@ -62,7 +62,7 @@ src_prepare() {
 }
 
 src_configure() {
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}" || die
 		x-modular_font_configure
@@ -101,7 +101,7 @@ src_configure() {
 }
 
 src_compile() {
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}" || die
 		LDPATH="/lib32:/usr/lib32:/usr/local/lib32:${LDPATH}" \
@@ -113,7 +113,7 @@ src_compile() {
 }
 
 src_install() {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}/32/${P}"
 		multilib_toolchain_setup x86
 		emake \
