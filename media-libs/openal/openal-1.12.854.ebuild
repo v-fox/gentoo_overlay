@@ -57,7 +57,7 @@ patching() {
 src_unpack() {
 	unpack "${A}"
 
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"
 		mv "${MY_P}${i}" "${MY_P}${i}_32"
 		unpack "${A}"
@@ -68,7 +68,7 @@ src_prepare() {
 	cd "${S}"
 	patching
 
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}/${MY_P}_32"
 		patching
 	fi
@@ -84,7 +84,7 @@ src_configure() {
 
 	cmake-utils_src_configure
 
-	if use amd64; then
+	if use multilib; then
 		switch_to32
 		multilib_toolchain_setup x86
 		cmake-utils_src_configure
@@ -96,7 +96,7 @@ src_configure() {
 src_compile() {
 	cmake-utils_src_compile
 
-	if use amd64; then
+	if use multilib; then
 		switch_to32
 		multilib_toolchain_setup x86
 		cmake-utils_src_compile
@@ -108,7 +108,7 @@ src_compile() {
 src_install() {
 	cmake-utils_src_install
 
-	if use amd64; then
+	if use multilib; then
 		switch_to32
 		multilib_toolchain_setup x86
 		cd "${S}"

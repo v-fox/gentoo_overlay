@@ -39,7 +39,7 @@ pkg_postinst() {
 }
 
 src_unpack() {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"
 		mkdir 32
 		git_src_unpack
@@ -57,7 +57,7 @@ src_unpack() {
 }
 
 x-modular_unpack_source() {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"
 		mkdir 32
 		git_src_unpack
@@ -69,7 +69,7 @@ x-modular_unpack_source() {
 }
 
 x-modular_src_configure() {
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}" || die
 		x-modular_font_configure
@@ -106,7 +106,7 @@ x-modular_src_configure() {
 }
 
 x-modular_src_make() {
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}" || die
 		emake || die "emake failed"
@@ -117,7 +117,7 @@ x-modular_src_make() {
 }
 
 x-modular_src_compile() {
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}"
 		x-modular_src_configure
@@ -131,7 +131,7 @@ x-modular_src_compile() {
 }
 
 x-modular_src_install() {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}/32/${P}"
 		multilib_toolchain_setup x86
 		emake \

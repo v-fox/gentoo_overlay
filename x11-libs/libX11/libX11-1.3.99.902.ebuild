@@ -42,7 +42,7 @@ CONFIGURE_OPTIONS="$(use_enable lint lint-library)
 		$(use_enable secure-rpc)"
 
 src_prepare() {
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}"
 		eautoreconf
@@ -63,7 +63,7 @@ src_unpack() {
 	cd ${S}
 	x-modular_reconf_source
 
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}"
 		mkdir 32
 		mv "${P}" 32/ || die
@@ -80,7 +80,7 @@ src_configure() {
 	${DRIVER_OPTIONS} \
 	${CONFIGURE_OPTIONS}
 
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}" || die
 		econf --prefix=${XDIR} \
@@ -97,7 +97,7 @@ src_configure() {
 src_compile() {
 	emake || die "emake failed"
 
-	if use amd64; then
+	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}"
 		emake || die "emake 32bit stuff failed"
@@ -106,7 +106,7 @@ src_compile() {
 }
 
 src_install() {
-	if use amd64; then
+	if use multilib; then
 		cd "${WORKDIR}/32/${P}"
 		multilib_toolchain_setup x86
 		emake \
