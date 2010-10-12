@@ -1,3 +1,3 @@
 Public Gentoo overlay for games, emulators and more of nifty stuff
 
-Warning: contain OSS graphic stack (mesa, libdrm, X, etc.) ebuilds dirty-hacked for support of 32 & 64bit multilib building and bleeding edge features
+Warning: it contains OSS graphic stack (mesa, libdrm, X, etc.) ebuilds dirty-hacked for support of 32&64bit multilib building and bleeding edge features
