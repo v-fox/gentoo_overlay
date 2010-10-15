@@ -26,7 +26,7 @@ SRC_URI="${SRC_URI}
 
 LICENSE="LGPL-2.1"
 SLOT="0"
-IUSE="alsa capi cups dbus esd +gecko glu gphoto gsm hal jack jpeg cms ldap mp3 nas ncurses +openal opengl ssl oss perl png samba scanner gnutls truetype xml X +win16 win64 newdib"
+IUSE="alsa capi cups dbus esd +gecko glu gphoto gsm hal jack jpeg cms ldap mp3 nas ncurses +openal opengl ssl oss perl png samba scanner gnutls truetype xml X +win16 win64"
 RESTRICT="test" #72375
 
 CDEPEND="media-fonts/corefonts
@@ -117,21 +117,8 @@ src_prepare() {
 	sed -i '/^UPDATE_DESKTOP_DATABASE/s:=.*:=true:' tools/Makefile.in || die
 	sed -i '/^MimeType/d' tools/wine.desktop || die #117785
 
-	cd "${S}"
-
-	if use newdib; then
-		# full DIB engine
-		einfo "Integration full-blown DIB engine..."
-		[ -f "${FILESDIR}/dib/series" ] || die
-		for i in `echo -n $(cat "${FILESDIR}/dib/series"|grep -v \#)`; do
-			epatch "${FILESDIR}/dib/${i}"
-		done
-	fi
-
-	cd "${S}"
-
 	# DInput via XI2 !
-	epatch "${FILESDIR}/dinput_xi2.patch"
+	epatch "${FILESDIR}/dinput_xi2_1.3.4.patch"
 }
 
 src_configure() {

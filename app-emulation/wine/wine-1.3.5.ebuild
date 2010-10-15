@@ -107,6 +107,12 @@ pkg_setup() {
 			ewarn "it seems there is no use for 64bit wine on your architecture"
 		fi
 	fi
+
+	if use newdib; then
+		elog "you are about to patch your wine source with experimental DIB Engine patches from"
+		elog "http://bugs.winehq.org/show_bug.cgi?id=421"
+		ewarn "they may fail. if they are, try without 'newdib'-flag"
+	fi
 }
 
 src_unpack() {
@@ -133,7 +139,7 @@ src_prepare() {
 	fi
 
 	# DInput via XI2 !
-	epatch "${FILESDIR}/dinput_xi2.patch"
+	epatch "${FILESDIR}/dinput_xi2_1.3.5.patch"
 }
 
 src_configure() {

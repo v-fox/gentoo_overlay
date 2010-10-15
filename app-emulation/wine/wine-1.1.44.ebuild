@@ -26,7 +26,7 @@ SRC_URI="${SRC_URI}
 
 LICENSE="LGPL-2.1"
 SLOT="0"
-IUSE="alsa capi cups dbus esd +gecko glu gphoto gsm hal jack jpeg cms ldap mp3 nas ncurses +openal opengl ssl oss perl png samba scanner gnutls truetype xml X +win16 win64 newdib"
+IUSE="alsa capi cups dbus esd +gecko glu gphoto gsm hal jack jpeg cms ldap mp3 nas ncurses +openal opengl ssl oss perl png samba scanner gnutls truetype xml X +win16 win64"
 RESTRICT="test" #72375
 
 CDEPEND="media-fonts/corefonts
@@ -119,26 +119,8 @@ src_prepare() {
 
 	cd "${S}"
 
-	if use newdib; then
-		# full DIB engine
-		einfo "Integration full-blown DIB engine..."
-		for i in `echo -n $(cat "${FILESDIR}/dib/series"|grep -v \#)`; do
-			epatch "${FILESDIR}/dib/${i}"
-		done
-	fi
-
-	# hack for stupid declaration
-	#use amd64 && \
-	#	epatch "${FILESDIR}/0001-winemp3-fix-build-failure-on-64-bit-by-specifying-i3.patch"
-
-	# more hacks
-	#epatch "${FILESDIR}/hack-for-ugly-video-detection.patch"
-
-	cd "${S}"
-	#epatch "${FILESDIR}/hack-for-stupid-ddraw.patch"
-
 	# DInput via XI2 !
-	epatch "${FILESDIR}/dinput_xi2.patch"
+	epatch "${FILESDIR}/dinput_xi2_1.3.4.patch"
 }
 
 src_configure() {
