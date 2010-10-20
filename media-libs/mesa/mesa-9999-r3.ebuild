@@ -47,7 +47,7 @@ for card in ${VIDEO_CARDS}; do
 done
 
 IUSE="${IUSE_VIDEO_CARDS}
-	debug doc direct3d gles glut llvm openvg osmesa pic motif selinux static X kernel_FreeBSD
+	debug ddx doc direct3d gles glut llvm openvg osmesa pic motif selinux static X kernel_FreeBSD
 	+classic +dri +egl +gallium +glu +drm +nptl +opengl +xcb"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.21"
@@ -60,6 +60,13 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 	direct3d? ( app-emulation/wine )
 	X? 	( !<x11-base/xorg-server-1.7
 		  !<=x11-proto/xf86driproto-2.0.3
+		  ddx? ( video_cards_r300? ( !x11-drivers/xf86-video-ati )
+			video_cards_r600? ( !x11-drivers/xf86-video-ati )
+			video_cards_radeon? ( !x11-drivers/xf86-video-ati )
+			video_cards_nouveau? ( !x11-drivers/xf86-video-nouveau )
+			video_cards_i915? ( !x11-drivers/xf86-video-intel )
+			video_cards_i965? ( !x11-drivers/xf86-video-intel )
+			video_cards_intel? ( !x11-drivers/xf86-video-intel ) )
 		  x11-libs/libX11
 		  x11-libs/libXext
 		  >=x11-libs/libXxf86vm-1.1
@@ -141,7 +148,7 @@ remove_headers() {
 
 	ebegin "removing unnecessary headers from $1"
 	for i in ${uheaders}; do
-			einfo "removing unnecessary header: ${i}.h"
+			einfo "header removal: ${i}.h"
 			rm -f "${1}"/include/GL/"${i}".h
 			eend $?
 	done
@@ -164,6 +171,11 @@ pkg_setup() {
 		die "gles requested without gallium or xcb"
 	fi
 
+	if use gles && ! use gallium && ! use egl; then
+		eerror "for use of gles with gallium you must have egl support"
+		die "gles requested with gallium but without egl"
+	fi
+
 	if ! use egl; then
 		ewarn "egl support is disabled ! egl is really must-have for modern systems"
 		ewarn "it will be better to enable it"
@@ -180,6 +192,12 @@ pkg_setup() {
 	if ! use gallium  && $(use openvg || use direct3d); then
 		eerror "openvg or direct3d state tracker was requested without actual gallium"
 		die "gallium missing"
+	fi
+
+	if use ddx  && $(! use gallium || ! use X); then
+		eerror "you have requested gallium state tracker-based ddx replacement for classical X ddx"
+		eerror "but failed to enable actual gallium or select X support"
+		die "gallium and X needed for use of this ddx"
 	fi
 
 	if use debug; then
@@ -358,7 +376,7 @@ src_configure() {
 		use direct3d 	&& myconf+=",d3d1x"
 		use dri 	&& myconf+=",dri"
 		use openvg 	&& myconf+=",vega"
-		use X 		&& myconf+=",xorg"
+		use ddx 	&& myconf+=",xorg"
 
 		# support of OpenGL for Embedded Systems via gallium
 		use gles 	&& myconf+=" --enable-gles-overlay"

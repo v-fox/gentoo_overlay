@@ -354,7 +354,9 @@ src_configure() {
 		use egl 	&& myconf+=",egl"
 		use dri 	&& myconf+=",dri"
 		use openvg 	&& myconf+=",vega"
-		use X 		&& myconf+=",xorg"
+
+		# xorg state tracker is almost unusable now and devs ignore its bug reports
+		#use X 		&& myconf+=",xorg"
 
 		# support of OpenGL for Embedded Systems via gallium
 		use gles 	&& myconf+=" --enable-gles-overlay"
