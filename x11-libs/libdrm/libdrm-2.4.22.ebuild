@@ -12,16 +12,16 @@ DESCRIPTION="X.Org libdrm library"
 HOMEPAGE="http://dri.freedesktop.org/"
 if [[ ${PV} = 9999* ]]; then
 	SRC_URI=""
+	KEYWORDS=""
 else
 	SRC_URI="http://dri.freedesktop.org/${PN}/${P}.tar.bz2"
+	KEYWORDS="~alpha ~amd64 ~arm ~hppa ~ia64 ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~x86-fbsd"
 fi
 VIDEO_CARDS="i915 i965 intel nouveau r300 r600 radeon vmware"
 for card in ${VIDEO_CARDS}; do
 	IUSE_VIDEO_CARDS+=" video_cards_${card}"
 done
 IUSE="${IUSE_VIDEO_CARDS} +kms +udev"
-
-KEYWORDS=""
 
 RESTRICT="test" # see bug #236845
 
