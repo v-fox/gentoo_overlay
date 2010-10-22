@@ -11,8 +11,10 @@ KEYWORDS=""
 IUSE="+exa +dri +kms"
 
 RDEPEND=">=x11-base/xorg-server-1.7[-minimal]
-	dri? ( >=x11-libs/libdrm-2.4.17[video_cards_radeon] )
-	kms? ( >=x11-libs/libdrm-2.4.17[kms] )"
+	dri? ( || ( >=x11-libs/libdrm-2.4.22[video_cards_radeon]
+		    >=x11-libs/libdrm-2.4.22[video_cards_r300]
+		    >=x11-libs/libdrm-2.4.22[video_cards_r600] ) )
+	kms? ( >=x11-libs/libdrm-2.4.22[kms] )"
 DEPEND="${RDEPEND}
 	x11-proto/fontsproto
 	x11-proto/randrproto
