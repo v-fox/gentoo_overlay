@@ -50,7 +50,7 @@ IUSE="${IUSE_VIDEO_CARDS}
 	debug ddx doc direct3d gles glut llvm openvg osmesa pic motif selinux static X kernel_FreeBSD
 	+classic +dri +egl +gallium +glu +drm +nptl +opengl +xcb"
 
-LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.21"
+LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.22"
 # keep correct libdrm and dri2proto dep
 # keep blocks in rdepend for binpkg
 RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
@@ -86,13 +86,9 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  app-doc/opengl-manpages )
 	${LIBDRM_DEPSTRING}[video_cards_nouveau?,video_cards_vmware?]"
 
-for card in ${INTEL_CARDS}; do
+for card in ${INTEL_CARDS} ${RADEON_CARDS}; do
 	RDEPEND="${RDEPEND}
-		video_cards_${card}? ( ${LIBDRM_DEPSTRING}[video_cards_intel] )"
-done
-for card in ${RADEON_CARDS}; do
-	RDEPEND="${RDEPEND}
-		video_cards_${card}? ( ${LIBDRM_DEPSTRING}[video_cards_radeon] )"
+		video_cards_${card}? ( ${LIBDRM_DEPSTRING}[video_cards_${card}] )"
 done
 
 DEPEND="${RDEPEND}
