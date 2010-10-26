@@ -283,10 +283,6 @@ src_configure() {
 	use dri 		&& DRIVER="dri"
 	myconf+=" --with-driver=${DRIVER}"
 
-	if [[ $DRIVER = osmesa ]]; then
-		myconf+=" --with-osmesa-bits=32"
-	fi
-
 	if use classic && use dri; then
 		# Configurable DRI drivers
 		driver_enable swrast

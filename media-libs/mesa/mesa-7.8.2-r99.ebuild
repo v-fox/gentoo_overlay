@@ -191,11 +191,6 @@ src_configure() {
 
 	myconf="${myconf} --with-driver=${DRIVER}"
 
-	if [[ $DRIVER = osmesa ]];then
-		myconf="${myconf} --with-osmesa-bits=32"
-		#myconf="${myconf} --enable-gl-osmesa"
-	fi
-
 	use X 	&& myconf="${myconf} --with-x" \
 		|| myconf="${myconf} --without-x --disable-glw"
 
