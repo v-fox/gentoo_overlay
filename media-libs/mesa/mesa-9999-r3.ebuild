@@ -47,7 +47,7 @@ for card in ${VIDEO_CARDS}; do
 done
 
 IUSE="${IUSE_VIDEO_CARDS}
-	debug ddx doc direct3d gles glut llvm openvg osmesa pic motif selinux static X kernel_FreeBSD
+	debug ddx doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux static X kernel_FreeBSD
 	+classic +dri +egl +gallium +glu +drm +nptl +opengl +xcb"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.22"
@@ -152,24 +152,24 @@ remove_headers() {
 }
 
 pkg_setup() {
-	if use classic && ! use dri; then
-		eerror "classic drivers stack are in need of dri"
-		die "classic drivers requsted without dri"
-	fi
-
 	if ! use classic && use osmesa; then
 		eerror "osmesa can be only built with classic stack and with or without dri"
 		die "osmesa requested without old graphic stack"
 	fi
 
-	if use gles && ! use gallium && ! use xcb; then
-		eerror "for use of gles you should enable gallium or xcb"
-		die "gles requested without gallium or xcb"
-	fi
-
 	if use gles && ! use gallium && ! use egl; then
 		eerror "for use of gles with gallium you must have egl support"
 		die "gles requested with gallium but without egl"
+	fi
+
+	if use gles && ! use gles1 && ! use gles2; then
+		eerror "gles libraries need gles1 or gles2 API selected"
+		die "gles support enabled but no gles API selected"
+	fi
+
+	if use ! gles && use gles1 && use gles2; then
+		eerror "gles1 or gles2 API selected but gles support is not"
+		die "gles API selected but gles support is not enabled"
 	fi
 
 	if ! use egl; then
@@ -293,54 +293,58 @@ src_prepare() {
 }
 
 src_configure() {
-	local myconf
+	local myconf="$(use_enable opengl)
+		      $(use_enable openvg)"
 
-	local DRIVER="osmesa"
-	use X 			&& DRIVER="xlib"
-	use dri 		&& DRIVER="dri"
-	myconf+=" --with-driver=${DRIVER}"
+	# support of OpenGL for Embedded Systems
+	if use gles; then
+		myconf+=" $(use_enable gles1)
+			  $(use_enable gles2)
+			  --enable-gles-overlay"
+	fi
+
+	if use classic; then
+		local DRIVER="osmesa"
+		use X 			&& DRIVER="xlib"
+		use dri 		&& DRIVER="dri"
+		myconf+=" --with-driver=${DRIVER}"
+	fi
 
 	if use classic && use dri; then
 		# Configurable DRI drivers
-		driver_enable swrast
+		dri_driver_enable swrast
 
 		# Intel code
-		driver_enable video_cards_i810 i810
-		driver_enable video_cards_i915 i915
-		driver_enable video_cards_i965 i965
+		dri_driver_enable video_cards_i810 i810
+		dri_driver_enable video_cards_i915 i915
+		dri_driver_enable video_cards_i965 i965
 		if ! use video_cards_i810 && ! use video_cards_i915 && ! use video_cards_i965; then
-			driver_enable video_cards_intel i810 i915 i965
+			dri_driver_enable video_cards_intel i810 i915 i965
 		fi
 
 		# Nouveau code
-		driver_enable video_cards_nouveau nouveau
+		dri_driver_enable video_cards_nouveau nouveau
 
 		# ATI code
-		driver_enable video_cards_mach64 mach64
-		driver_enable video_cards_mga mga
-		driver_enable video_cards_r128 r128
+		dri_driver_enable video_cards_mach64 mach64
+		dri_driver_enable video_cards_mga mga
+		dri_driver_enable video_cards_r128 r128
 
-		driver_enable video_cards_r100 radeon
-		driver_enable video_cards_r200 r200
-		driver_enable video_cards_r300 r300
-		driver_enable video_cards_r600 r600
+		dri_driver_enable video_cards_r100 radeon
+		dri_driver_enable video_cards_r200 r200
+		dri_driver_enable video_cards_r300 r300
+		dri_driver_enable video_cards_r600 r600
 		if ! use video_cards_r100 && ! use video_cards_r200 && ! use video_cards_r300 && ! use video_cards_r600; then
-			driver_enable video_cards_radeon radeon r200 r300 r600
+			dri_driver_enable video_cards_radeon radeon r200 r300 r600
 		fi
 
-		driver_enable video_cards_savage savage
-		driver_enable video_cards_sis sis
-		driver_enable video_cards_tdfx tdfx
-		driver_enable video_cards_via unichrome
+		dri_driver_enable video_cards_savage savage
+		dri_driver_enable video_cards_sis sis
+		dri_driver_enable video_cards_tdfx tdfx
+		dri_driver_enable video_cards_via unichrome
 
 		# Set drivers to everything on which we ran driver_enable()
 		use dri && myconf+=" --with-dri-drivers=${DRI_DRIVERS}"
-
-		# support of OpenGL for Embedded Systems via classic stuff
-		if use xcb; then
-			myconf+=" $(use_enable gles gles1)
-				  $(use_enable gles gles2)"
-		fi
 
 		if [[ $DRIVER != osmesa ]] && use classic; then
 			# build & use osmesa even with GL
@@ -370,36 +374,34 @@ src_configure() {
 		use openvg 	&& myconf+=",vega"
 		use ddx 	&& myconf+=",xorg"
 
-		# support of OpenGL for Embedded Systems via gallium
-		use gles 	&& myconf+=" --enable-gles-overlay"
-
 		# drivers
+		local gallium_i915 gallium_i965 gallium_r300 gallium_r600
+		use video_cards_i915 && gallium_i915="1"
+		use video_cards_i965 && gallium_i965="1"
+		if ! use video_cards_i915 && ! use video_cards_i965 && use video_cards_intel; then
+			gallium_i915="1"
+			gallium_i965="1"
+		fi
+		use video_cards_r300 && gallium_radeon="1"
+		use video_cards_r600 && gallium_r600="1"
+		if ! use video_cards_r300 && ! use video_cards_r600 && use video_cards_radeon; then
+			gallium_r300="1"
+			gallium_r600="1"
+		fi
+
 		myconf+=" $(use_enable llvm gallium-llvm)
 			  $(use_enable video_cards_vmware gallium-svga)
 			  $(use_enable video_cards_nouveau gallium-nouveau)"
-			if use video_cards_i915 || use video_cards_intel; then
-				myconf="${myconf} --enable-gallium-i915"
-				else
-				myconf="${myconf} --disable-gallium-i915"
-			fi
-			if use video_cards_i965 || use video_cards_intel; then
-				myconf="${myconf} --enable-gallium-i965"
-				else
-				myconf="${myconf} --disable-gallium-i965"
-			fi
-			if use video_cards_r300 || use video_cards_radeon; then
-				myconf="${myconf} --enable-gallium-radeon"
-			else
-				myconf="${myconf} --disable-gallium-radeon"
-			fi
-			if use video_cards_r600 || use video_cards_radeon; then
-				myconf="${myconf} --enable-gallium-r600"
-				else
-				myconf="${myconf} --disable-gallium-r600"
-			fi
+		for i in i915 i965 radeon r600; do
+			local current="gallium_$i"
+			eval current="\$$current"
+			[ ! -z "$current" ] && \
+				myconf+=" --enable-gallium-$i" || \
+				myconf+=" --disable-gallium-$i"
+		done
 	else
 		if use video_cards_nouveau || use video_cards_vmware; then
-			elog "SVGA and nouveau drivers are available only via gallium interface."
+			elog "SVGA/wmware, LLVM and nouveau drivers are available only via gallium interface."
 			elog "Enable gallium useflag if you want to use them."
 		fi
 	fi
@@ -495,7 +497,7 @@ pkg_postinst() {
 
 # $1 - VIDEO_CARDS flag
 # other args - names of DRI drivers to enable
-driver_enable() {
+dri_driver_enable() {
 	case $# in
 		# for enabling unconditionally
 		1)
