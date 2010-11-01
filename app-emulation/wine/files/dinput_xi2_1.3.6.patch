@@ -1,8 +1,8 @@
 diff --git a/configure b/configure
-index a735091..5722b16 100755
+index ace7d46..d78327e 100755
 --- a/configure
 +++ b/configure
-@@ -7961,6 +7961,7 @@ fi
+@@ -7962,6 +7962,7 @@ fi
                        X11/Xcursor/Xcursor.h \
                        X11/extensions/shape.h \
                        X11/extensions/XInput.h \
@@ -10,7 +10,7 @@ index a735091..5722b16 100755
                        X11/extensions/XShm.h \
                        X11/extensions/Xcomposite.h \
                        X11/extensions/Xinerama.h \
-@@ -8157,6 +8158,61 @@ This is an error since --with-xinput was requested." "$LINENO" 5  ;;
+@@ -8158,6 +8159,61 @@ This is an error since --with-xinput was requested." "$LINENO" 5  ;;
  esac
  fi
  
@@ -73,10 +73,10 @@ index a735091..5722b16 100755
          then
                { $as_echo "$as_me:${as_lineno-$LINENO}: checking for XShmQueryExtension in -lXext" >&5
 diff --git a/configure.ac b/configure.ac
-index 1a502db..e88f57f 100644
+index 85983d5..aa07f27 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -895,6 +895,7 @@ then
+@@ -896,6 +896,7 @@ then
                        X11/Xcursor/Xcursor.h \
                        X11/extensions/shape.h \
                        X11/extensions/XInput.h \
@@ -84,7 +84,7 @@ index 1a502db..e88f57f 100644
                        X11/extensions/XShm.h \
                        X11/extensions/Xcomposite.h \
                        X11/extensions/Xinerama.h \
-@@ -933,6 +934,17 @@ then
+@@ -934,6 +935,17 @@ then
          WINE_NOTICE_WITH(xinput,[test "x$ac_cv_lib_soname_Xi" = "x"],
                           [libxi ${notice_platform}development files not found, the Xinput extension won't be supported.])
  
@@ -225,54 +225,55 @@ index 9fbb002..2d4126c 100644
  
  /* return the name of an X event */
 diff --git a/dlls/winex11.drv/mouse.c b/dlls/winex11.drv/mouse.c
-index 485a50d..6ac9b47 100644
+index 77a9e5f..d0545ad 100644
 --- a/dlls/winex11.drv/mouse.c
 +++ b/dlls/winex11.drv/mouse.c
-@@ -22,31 +22,51 @@
+@@ -22,23 +22,10 @@
  #include "config.h"
  #include "wine/port.h"
  
 -#include <X11/Xlib.h>
 +#include <stdlib.h>
+ #include <X11/cursorfont.h>
  #include <stdarg.h>
+-
+-#ifdef SONAME_LIBXCURSOR
+-# include <X11/Xcursor/Xcursor.h>
+-static void *xcursor_handle;
+-# define MAKE_FUNCPTR(f) static typeof(f) * p##f
+-MAKE_FUNCPTR(XcursorImageCreate);
+-MAKE_FUNCPTR(XcursorImageDestroy);
+-MAKE_FUNCPTR(XcursorImageLoadCursor);
+-MAKE_FUNCPTR(XcursorImagesCreate);
+-MAKE_FUNCPTR(XcursorImagesDestroy);
+-MAKE_FUNCPTR(XcursorImagesLoadCursor);
+-MAKE_FUNCPTR(XcursorLibraryLoadCursor);
+-# undef MAKE_FUNCPTR
+-#endif /* SONAME_LIBXCURSOR */
 +#include <assert.h>
-+
-+#define NONAMELESSUNION
-+#define NONAMELESSSTRUCT
-+#include "windef.h"
-+#include "winbase.h"
-+
-+#include "x11drv.h"
-+#include "wine/server.h"
-+#include "wine/library.h"
-+#include "wine/debug.h"
-+
+ 
+ #define NONAMELESSUNION
+ #define NONAMELESSSTRUCT
+@@ -53,6 +40,39 @@ MAKE_FUNCPTR(XcursorLibraryLoadCursor);
+ #include "wine/unicode.h"
+ #include "wine/debug.h"
+ 
 +#include <X11/Xlib.h>
 +
 +#define MAKE_FUNCPTR(f) static typeof(f) * p##f
- 
- #ifdef SONAME_LIBXCURSOR
- # include <X11/Xcursor/Xcursor.h>
- static void *xcursor_handle;
--# define MAKE_FUNCPTR(f) static typeof(f) * p##f
- MAKE_FUNCPTR(XcursorImageCreate);
- MAKE_FUNCPTR(XcursorImageDestroy);
- MAKE_FUNCPTR(XcursorImageLoadCursor);
- MAKE_FUNCPTR(XcursorImagesCreate);
- MAKE_FUNCPTR(XcursorImagesDestroy);
- MAKE_FUNCPTR(XcursorImagesLoadCursor);
--# undef MAKE_FUNCPTR
- #endif /* SONAME_LIBXCURSOR */
- 
--#define NONAMELESSUNION
--#define NONAMELESSSTRUCT
--#include "windef.h"
--#include "winbase.h"
--
--#include "x11drv.h"
--#include "wine/server.h"
--#include "wine/library.h"
--#include "wine/debug.h"
++
++#ifdef SONAME_LIBXCURSOR
++# include <X11/Xcursor/Xcursor.h>
++static void *xcursor_handle;
++MAKE_FUNCPTR(XcursorImageCreate);
++MAKE_FUNCPTR(XcursorImageDestroy);
++MAKE_FUNCPTR(XcursorImageLoadCursor);
++MAKE_FUNCPTR(XcursorImagesCreate);
++MAKE_FUNCPTR(XcursorImagesDestroy);
++MAKE_FUNCPTR(XcursorImagesLoadCursor);
++MAKE_FUNCPTR(XcursorLibraryLoadCursor);
++#endif /* SONAME_LIBXCURSOR */
++
 +#ifdef HAVE_LIBXINPUT2
 +# include <X11/extensions/XInput2.h>
 +static void *xinput2_handle;
@@ -289,10 +290,11 @@ index 485a50d..6ac9b47 100644
 +#endif /* HAVE_LIBXINPUT2 */
 +
 +#undef MAKE_FUNCPTR
- 
++
  WINE_DEFAULT_DEBUG_CHANNEL(cursor);
  
-@@ -124,6 +144,67 @@ void X11DRV_Xcursor_Init(void)
+ /**********************************************************************/
+@@ -130,6 +150,67 @@ void X11DRV_Xcursor_Init(void)
  #endif /* SONAME_LIBXCURSOR */
  }
  
@@ -360,7 +362,7 @@ index 485a50d..6ac9b47 100644
  
  /***********************************************************************
   *		clip_point_to_rect
-@@ -1088,3 +1169,160 @@ void X11DRV_EnterNotify( HWND hwnd, XEvent *xev )
+@@ -1245,3 +1326,160 @@ void X11DRV_EnterNotify( HWND hwnd, XEvent *xev )
      X11DRV_send_mouse_input( hwnd, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
                               pt.x, pt.y, 0, EVENT_x11_time_to_win32_time(event->time), 0, 0 );
  }
@@ -532,10 +534,10 @@ index 323da2c..16b2d33 100644
 +
 +@ cdecl wine_xinput_acquire(long ptr) X11DRV_xinput_acquire
 diff --git a/dlls/winex11.drv/x11drv.h b/dlls/winex11.drv/x11drv.h
-index a4b9d76..1903ede 100644
+index 536a4a1..c78efbd 100644
 --- a/dlls/winex11.drv/x11drv.h
 +++ b/dlls/winex11.drv/x11drv.h
-@@ -707,6 +707,7 @@ extern void X11DRV_DestroyNotify( HWND hwnd, XEvent *event );
+@@ -708,6 +708,7 @@ extern void X11DRV_DestroyNotify( HWND hwnd, XEvent *event );
  extern void X11DRV_SelectionRequest( HWND hWnd, XEvent *event );
  extern void X11DRV_SelectionClear( HWND hWnd, XEvent *event );
  extern void X11DRV_MappingNotify( HWND hWnd, XEvent *event );
@@ -543,7 +545,7 @@ index a4b9d76..1903ede 100644
  
  extern DWORD EVENT_x11_time_to_win32_time(Time time);
  
-@@ -834,6 +835,8 @@ extern void X11DRV_XIMLookupChars( const char *str, DWORD count ) DECLSPEC_HIDDE
+@@ -835,6 +836,8 @@ extern void X11DRV_XIMLookupChars( const char *str, DWORD count ) DECLSPEC_HIDDE
  extern void X11DRV_ForceXIMReset(HWND hwnd) DECLSPEC_HIDDEN;
  extern BOOL X11DRV_SetPreeditState(HWND hwnd, BOOL fOpen);
  
@@ -553,10 +555,10 @@ index a4b9d76..1903ede 100644
  extern LRESULT HOOK_CallHooks( INT id, INT code, WPARAM wparam, LPARAM lparam, BOOL unicode );
  
 diff --git a/dlls/winex11.drv/x11drv_main.c b/dlls/winex11.drv/x11drv_main.c
-index b07061c..546ea7d 100644
+index cf221b1..b101489 100644
 --- a/dlls/winex11.drv/x11drv_main.c
 +++ b/dlls/winex11.drv/x11drv_main.c
-@@ -552,6 +552,7 @@ static BOOL process_attach(void)
+@@ -556,6 +556,7 @@ static BOOL process_attach(void)
  #ifdef SONAME_LIBXCOMPOSITE
      X11DRV_XComposite_Init();
  #endif
@@ -565,7 +567,7 @@ index b07061c..546ea7d 100644
  #ifdef HAVE_XKB
      if (use_xkb) use_xkb = XkbUseExtension( gdi_display, NULL, NULL );
 diff --git a/include/config.h.in b/include/config.h.in
-index 98a951f..54a17b1 100644
+index 0bb6be2..88a88dc 100644
 --- a/include/config.h.in
 +++ b/include/config.h.in
 @@ -367,6 +367,9 @@
@@ -578,7 +580,7 @@ index 98a951f..54a17b1 100644
  /* Define if you have the libxml2 library */
  #undef HAVE_LIBXML2
  
-@@ -1072,6 +1075,9 @@
+@@ -1075,6 +1078,9 @@
  /* Define to 1 if you have the <X11/extensions/Xinerama.h> header file. */
  #undef HAVE_X11_EXTENSIONS_XINERAMA_H
  

@@ -28,7 +28,7 @@ SRC_URI="${SRC_URI}
 
 LICENSE="LGPL-2.1"
 SLOT="0"
-IUSE="alsa capi cups dbus esd +gecko glu gphoto gsm hal icns jack jpeg cms ldap mp3 nas ncurses +openal opengl ssl oss perl png +pthread samba scanner gnutls tiff truetype xml v4l2 X +win16 win64 newdib"
+IUSE="alsa capi cups dbus esd +gecko glu gphoto gsm gstreamer hal icns jack jpeg cms ldap mp3 nas ncurses +openal opengl ssl oss perl png +pthread samba scanner gnutls tiff truetype xml v4l2 X +win16 win64 newdib"
 RESTRICT="test" #72375
 
 CDEPEND="media-fonts/corefonts
@@ -56,6 +56,7 @@ CDEPEND="media-fonts/corefonts
 	glu? 	( virtual/glu )
 	gphoto? ( media-libs/libgphoto2 )
 	gsm?	( media-sound/gsm )
+	gstreamer? ( media-libs/gstreamer )
 	openal? ( media-libs/openal )
 	opengl? ( virtual/opengl )
 	mp3? 	( media-sound/mpg123 )
@@ -74,10 +75,14 @@ CDEPEND="media-fonts/corefonts
 	win64? ( >=sys-devel/gcc-4.4_alpha )
 	amd64? ( >=sys-kernel/linux-headers-2.6
 		app-emulation/emul-linux-x86-baselibs
-		truetype? 	( >=app-emulation/emul-linux-x86-xlibs-2.1 )
-		X? 		( >=app-emulation/emul-linux-x86-xlibs-2.1 )
-		alsa? 		( >=app-emulation/emul-linux-x86-soundlibs-2.1 )
-		mp3? 		( >=app-emulation/emul-linux-x86-soundlibs-2.1 ) )"
+		truetype? 	( >=app-emulation/emul-linux-x86-xlibs-20100611 )
+		X? 		( >=app-emulation/emul-linux-x86-xlibs-20100611 )
+		alsa? 		( >=app-emulation/emul-linux-x86-soundlibs-20100611 )
+		gstreamer? 	( >=app-emulation/emul-linux-x86-soundlibs-20100611 )
+		mp3? 		( >=app-emulation/emul-linux-x86-soundlibs-20100611 )
+		openal? 	( media-libs/openal[multilib] )
+		opengl? 	( || ( >=app-emulation/emul-linux-x86-xlibs-20100611
+					media-libs/mesa[multilib] ) ) )"
 
 RDEPEND="${CDEPEND}
 	perl? 	( dev-lang/perl
@@ -139,7 +144,7 @@ src_prepare() {
 	fi
 
 	# DInput via XI2 !
-	epatch "${FILESDIR}/dinput_xi2_1.3.5.patch"
+	epatch "${FILESDIR}/dinput_xi2_1.3.6.patch"
 }
 
 src_configure() {
@@ -160,6 +165,7 @@ src_configure() {
 		$(use_with glu) \
 		$(use_with gphoto) \
 		$(use_with gsm) \
+		$(use_with gstreamer) \
 		$(use_with mp3 mpg123) \
 		$(use_with jack) \
 		$(use_with jpeg) \
