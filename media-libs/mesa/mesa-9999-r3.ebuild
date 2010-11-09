@@ -190,9 +190,9 @@ pkg_setup() {
 		die "gallium missing"
 	fi
 
-	if use ddx  && $(! use gallium || ! use X); then
+	if use ddx  && $(! use drm || ! use gallium || ! use X); then
 		eerror "you have requested gallium state tracker-based ddx replacement for classical X ddx"
-		eerror "but failed to enable actual gallium or select X support"
+		eerror "but failed to enable drm, actual gallium or select X support"
 		die "gallium and X needed for use of this ddx"
 	fi
 
