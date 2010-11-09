@@ -97,7 +97,8 @@ DEPEND="${CDEPEND}
 	)
 	dev-util/pkgconfig
 	sys-devel/bison
-	sys-devel/flex"
+	sys-devel/flex
+	sys-devel/prelink"
 
 pkg_setup() {
 	if ! use perl; then
