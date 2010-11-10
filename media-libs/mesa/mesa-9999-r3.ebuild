@@ -355,7 +355,8 @@ src_configure() {
 	fi
 
 	# configure gallium support
-	myconf="${myconf} $(use_enable gallium)"
+	myconf="${myconf} $(use_enable gallium)
+		$(use_enable egl gallium-egl)"
 	if use gallium; then
 		elog "You have enabled gallium infrastructure."
 		elog "This infrastructure currently support these drivers:"
