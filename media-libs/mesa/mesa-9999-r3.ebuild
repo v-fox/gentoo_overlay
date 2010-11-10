@@ -298,9 +298,8 @@ src_configure() {
 
 	# support of OpenGL for Embedded Systems
 	if use gles; then
-		myconf+=" $(use_enable gles1)
-			  $(use_enable gles2)
-			  --enable-gles-overlay"
+		myconf+="$(use_enable gles1)
+			 $(use_enable gles2)"
 	fi
 
 	if use classic; then
@@ -356,7 +355,8 @@ src_configure() {
 
 	# configure gallium support
 	myconf="${myconf} $(use_enable gallium)
-		$(use_enable egl gallium-egl)"
+		$(use_enable egl gallium-egl)
+		$(use_enable gles gles-overlay)"
 	if use gallium; then
 		elog "You have enabled gallium infrastructure."
 		elog "This infrastructure currently support these drivers:"
