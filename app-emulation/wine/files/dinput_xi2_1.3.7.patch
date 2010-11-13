@@ -1,8 +1,8 @@
 diff --git a/configure b/configure
-index ace7d46..d78327e 100755
+index 9b1cb22..05baa8d 100755
 --- a/configure
 +++ b/configure
-@@ -7962,6 +7962,7 @@ fi
+@@ -7972,6 +7972,7 @@ fi
                        X11/Xcursor/Xcursor.h \
                        X11/extensions/shape.h \
                        X11/extensions/XInput.h \
@@ -10,7 +10,7 @@ index ace7d46..d78327e 100755
                        X11/extensions/XShm.h \
                        X11/extensions/Xcomposite.h \
                        X11/extensions/Xinerama.h \
-@@ -8158,6 +8159,61 @@ This is an error since --with-xinput was requested." "$LINENO" 5  ;;
+@@ -8168,6 +8169,61 @@ This is an error since --with-xinput was requested." "$LINENO" 5  ;;
  esac
  fi
  
@@ -73,10 +73,10 @@ index ace7d46..d78327e 100755
          then
                { $as_echo "$as_me:${as_lineno-$LINENO}: checking for XShmQueryExtension in -lXext" >&5
 diff --git a/configure.ac b/configure.ac
-index 85983d5..aa07f27 100644
+index 04ed14f..0d4410a 100644
 --- a/configure.ac
 +++ b/configure.ac
-@@ -896,6 +896,7 @@ then
+@@ -897,6 +897,7 @@ then
                        X11/Xcursor/Xcursor.h \
                        X11/extensions/shape.h \
                        X11/extensions/XInput.h \
@@ -84,7 +84,7 @@ index 85983d5..aa07f27 100644
                        X11/extensions/XShm.h \
                        X11/extensions/Xcomposite.h \
                        X11/extensions/Xinerama.h \
-@@ -934,6 +935,17 @@ then
+@@ -935,6 +936,17 @@ then
          WINE_NOTICE_WITH(xinput,[test "x$ac_cv_lib_soname_Xi" = "x"],
                           [libxi ${notice_platform}development files not found, the Xinput extension won't be supported.])
  
@@ -209,23 +209,23 @@ index 1599157..7390c01 100644
                                (dwCoop & DISCL_EXCLUSIVE || This->warp_override == WARP_FORCE_ON);
              break;
 diff --git a/dlls/winex11.drv/event.c b/dlls/winex11.drv/event.c
-index 9fbb002..2d4126c 100644
+index ae0875b..bc9dedf 100644
 --- a/dlls/winex11.drv/event.c
 +++ b/dlls/winex11.drv/event.c
-@@ -125,9 +125,10 @@ static struct event_handler handlers[MAX_EVENT_HANDLERS] =
+@@ -141,9 +141,10 @@ static struct event_handler handlers[MAX_EVENT_HANDLERS] =
      /* ColormapNotify */
      { ClientMessage,    X11DRV_ClientMessage },
      { MappingNotify,    X11DRV_MappingNotify },
 +    { GenericEvent,     X11DRV_GenericEvent },
  };
  
--static int nb_event_handlers = 18;  /* change this if you add handlers above */
-+static int nb_event_handlers = 19;  /* change this if you add handlers above */
+-static int nb_event_handlers = 20;  /* change this if you add handlers above */
++static int nb_event_handlers = 21;  /* change this if you add handlers above */
  
  
  /* return the name of an X event */
 diff --git a/dlls/winex11.drv/mouse.c b/dlls/winex11.drv/mouse.c
-index 77a9e5f..d0545ad 100644
+index 71b31cc..61eb7dc 100644
 --- a/dlls/winex11.drv/mouse.c
 +++ b/dlls/winex11.drv/mouse.c
 @@ -22,23 +22,10 @@
@@ -362,8 +362,8 @@ index 77a9e5f..d0545ad 100644
  
  /***********************************************************************
   *		clip_point_to_rect
-@@ -1245,3 +1326,160 @@ void X11DRV_EnterNotify( HWND hwnd, XEvent *xev )
-     X11DRV_send_mouse_input( hwnd, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
+@@ -1258,3 +1339,160 @@ void X11DRV_EnterNotify( HWND hwnd, XEvent *xev )
+     X11DRV_send_mouse_input( top_hwnd, hwnd, MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE,
                               pt.x, pt.y, 0, EVENT_x11_time_to_win32_time(event->time), 0, 0 );
  }
 +
@@ -524,20 +524,20 @@ index 77a9e5f..d0545ad 100644
 +
 +#endif /* HAVE_LIBXINPUT2 */
 diff --git a/dlls/winex11.drv/winex11.drv.spec b/dlls/winex11.drv/winex11.drv.spec
-index 323da2c..16b2d33 100644
+index 9476c40..6ead1aa 100644
 --- a/dlls/winex11.drv/winex11.drv.spec
 +++ b/dlls/winex11.drv/winex11.drv.spec
-@@ -161,3 +161,5 @@
+@@ -162,3 +162,5 @@
  @ stdcall ImeProcessKey(long long long ptr)
  @ stdcall ImeGetRegisterWordStyle(long ptr)
  @ stdcall ImeGetImeMenuItems(long long long ptr ptr long)
 +
 +@ cdecl wine_xinput_acquire(long ptr) X11DRV_xinput_acquire
 diff --git a/dlls/winex11.drv/x11drv.h b/dlls/winex11.drv/x11drv.h
-index 536a4a1..c78efbd 100644
+index f48b51f..d9035ce 100644
 --- a/dlls/winex11.drv/x11drv.h
 +++ b/dlls/winex11.drv/x11drv.h
-@@ -708,6 +708,7 @@ extern void X11DRV_DestroyNotify( HWND hwnd, XEvent *event );
+@@ -713,6 +713,7 @@ extern void X11DRV_DestroyNotify( HWND hwnd, XEvent *event );
  extern void X11DRV_SelectionRequest( HWND hWnd, XEvent *event );
  extern void X11DRV_SelectionClear( HWND hWnd, XEvent *event );
  extern void X11DRV_MappingNotify( HWND hWnd, XEvent *event );
@@ -545,7 +545,7 @@ index 536a4a1..c78efbd 100644
  
  extern DWORD EVENT_x11_time_to_win32_time(Time time);
  
-@@ -835,6 +836,8 @@ extern void X11DRV_XIMLookupChars( const char *str, DWORD count ) DECLSPEC_HIDDE
+@@ -843,6 +844,8 @@ extern void X11DRV_XIMLookupChars( const char *str, DWORD count ) DECLSPEC_HIDDE
  extern void X11DRV_ForceXIMReset(HWND hwnd) DECLSPEC_HIDDEN;
  extern BOOL X11DRV_SetPreeditState(HWND hwnd, BOOL fOpen);
  
@@ -555,10 +555,10 @@ index 536a4a1..c78efbd 100644
  extern LRESULT HOOK_CallHooks( INT id, INT code, WPARAM wparam, LPARAM lparam, BOOL unicode );
  
 diff --git a/dlls/winex11.drv/x11drv_main.c b/dlls/winex11.drv/x11drv_main.c
-index cf221b1..b101489 100644
+index 0d1a7da..f94bba4 100644
 --- a/dlls/winex11.drv/x11drv_main.c
 +++ b/dlls/winex11.drv/x11drv_main.c
-@@ -556,6 +556,7 @@ static BOOL process_attach(void)
+@@ -562,6 +562,7 @@ static BOOL process_attach(void)
  #ifdef SONAME_LIBXCOMPOSITE
      X11DRV_XComposite_Init();
  #endif
@@ -567,7 +567,7 @@ index cf221b1..b101489 100644
  #ifdef HAVE_XKB
      if (use_xkb) use_xkb = XkbUseExtension( gdi_display, NULL, NULL );
 diff --git a/include/config.h.in b/include/config.h.in
-index 0bb6be2..88a88dc 100644
+index 46adad8..be06226 100644
 --- a/include/config.h.in
 +++ b/include/config.h.in
 @@ -367,6 +367,9 @@

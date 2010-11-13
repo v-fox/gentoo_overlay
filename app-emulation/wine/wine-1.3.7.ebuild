@@ -145,7 +145,7 @@ src_prepare() {
 	fi
 
 	# DInput via XI2 !
-	epatch "${FILESDIR}/dinput_xi2_1.3.6.patch"
+	epatch "${FILESDIR}/dinput_xi2_1.3.7.patch"
 }
 
 src_configure() {
