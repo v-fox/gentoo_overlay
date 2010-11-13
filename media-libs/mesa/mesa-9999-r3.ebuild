@@ -82,8 +82,7 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x86? ( dev-libs/udis86 )
 		  amd64? ( dev-libs/udis86[pic] ) )
 	motif? 	( x11-libs/openmotif )
-	doc? 	( dev-libs/libxml2[python]
-		  app-doc/opengl-manpages )
+	doc? 	( app-doc/opengl-manpages )
 	${LIBDRM_DEPSTRING}[video_cards_nouveau?,video_cards_vmware?]"
 
 for card in ${INTEL_CARDS} ${RADEON_CARDS}; do
@@ -101,6 +100,7 @@ DEPEND="${RDEPEND}
 		!hppa? ( x11-proto/xf86driproto )
 		>=x11-proto/xf86vidmodeproto-2.3
 		>=x11-proto/glproto-1.4.8 )
+	dev-libs/libxml2[python]
 	dev-util/pkgconfig
 	motif? ( x11-proto/printproto )"
 
