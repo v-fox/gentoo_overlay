@@ -366,6 +366,12 @@ src_configure() {
 		elog "    Nouveau: Support for nVidia NV30 and later cards"
 		elog "    Radeon: Newest implementation of r{300-500} and r{600-800} drivers"
 		elog "    Svga: VMWare Virtual GPU driver"
+		elog "    noop: fake driver for debugging gallium. enabled with 'debug' flag"
+		if use debug; then
+			elog "to actually use noop you must rename it to swrast_dri.so"
+			elog "and properly set LIBGL_DRIVERS_PATH env variable"
+			elog "(symlinking it to /ust/local/lib with this name will be good idea)"
+		fi
 		# state trackers
 		myconf+=" --enable-gallium-swrast --with-state-trackers="
 		use opengl 	&& myconf+=",glx"
@@ -391,6 +397,7 @@ src_configure() {
 		fi
 
 		myconf+=" $(use_enable llvm gallium-llvm)
+			  $(use_enable debug gallium-noop)
 			  $(use_enable video_cards_vmware gallium-svga)
 			  $(use_enable video_cards_nouveau gallium-nouveau)"
 		for i in i915 i965 radeon r600; do
