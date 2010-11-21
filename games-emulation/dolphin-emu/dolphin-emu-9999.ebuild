@@ -5,19 +5,16 @@ EAPI="3"
 
 inherit cmake-utils eutils flag-o-matic games subversion
 
-MY_PV="${PV/9999_p/}"
-
 DESCRIPTION="Free. open source emulator for Nintendo GameCube and Wii"
 HOMEPAGE="http://www.dolphin-emu.com/"
 SRC_URI=""
 ESVN_REPO_URI="http://dolphin-emu.googlecode.com/svn/trunk/"
 ESVN_PROJECT="dolphin-emu-read-only"
-ESVN_REVISION="$MY_PV"
 
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~x86 ~amd64 ~ppc ~ppc64"
-IUSE="alsa ao bluetooth doc encode +lzo openal opengl portaudio pulseaudio +wxwidgets +xrandr"
+IUSE="alsa ao bluetooth doc encode +lzo openal opencl opengl portaudio pulseaudio +wxwidgets +xrandr"
 RESTRICT=""
 
 RDEPEND=">=media-libs/glew-1.5
@@ -31,6 +28,9 @@ RDEPEND=">=media-libs/glew-1.5
 	encode? ( media-video/ffmpeg[encode] )
 	lzo? ( dev-libs/lzo )
 	openal? ( media-libs/openal )
+	opencl? ( || ( media-libs/mesa[opencl]
+			x11-drivers/nvidia-drivers
+			x11-drivers/ati-drivers ) )
 	opengl? ( virtual/opengl )
 	portaudio? ( media-libs/portaudio )
 	pulseaudio? ( media-sound/pulseaudio )
@@ -47,7 +47,7 @@ DEPEND="${RDEPEND}
 src_configure() {
 	# Configure cmake
 	mycmakeargs="
-		-DDOLPHIN_WC_REVISION=${MY_PV}
+		-DDOLPHIN_WC_REVISION=9999
 		-DCMAKE_INSTALL_PREFIX=${GAMES_PREFIX}
 		-Dprefix=${GAMES_PREFIX}
 		-Ddatadir=${GAMES_DATADIR}/${PN}
