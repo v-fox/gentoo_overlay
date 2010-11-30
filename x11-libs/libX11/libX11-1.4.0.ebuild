@@ -11,13 +11,14 @@ inherit x-modular toolchain-funcs flag-o-matic
 DESCRIPTION="X.Org X11 library"
 
 KEYWORDS="~alpha ~amd64 ~arm ~hppa ~ia64 ~m68k ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~x86-fbsd"
-IUSE="lint ipv6 nls +threads local +tcp +unix +secure-rpc +xkb +xcms"
+IUSE="lint doc ipv6 nls +threads local +tcp +unix +secure-rpc +xkb +xcms"
 RDEPEND=">=x11-libs/xtrans-1.0.1
 	x11-libs/libXau
 	x11-libs/libXdmcp
 	x11-proto/kbproto
 	>=x11-proto/xproto-7.0.6
 	>=x11-libs/libxcb-1.0
+	doc? ( app-text/xmlto )
 	xkb? ( x11-libs/libxkbfile
 		x11-libs/libxkbui )
 	xcms? ( x11-apps/xcmsdb )"
@@ -39,7 +40,10 @@ CONFIGURE_OPTIONS="$(use_enable lint lint-library)
 		$(use_enable local local-transport)
 		$(use_enable tcp tcp-transport)
 		$(use_enable unix unix-transport)
-		$(use_enable secure-rpc)"
+		$(use_enable secure-rpc)
+		$(use_with doc xmlto)
+                $(use_enable doc specs)
+                --with-fop"
 
 src_prepare() {
 	if use multilib; then
