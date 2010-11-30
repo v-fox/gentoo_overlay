@@ -43,7 +43,7 @@ CONFIGURE_OPTIONS="$(use_enable lint lint-library)
 		$(use_enable secure-rpc)
 		$(use_with doc xmlto)
                 $(use_enable doc specs)
-                --with-fop"
+                --without-fop"
 
 src_prepare() {
 	if use multilib; then
