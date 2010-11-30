@@ -91,7 +91,7 @@ x-modular_src_configure() {
 	fi
 }
 
-x-modular_src_make() {
+x-modular_src_compile() {
 	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${P}"
@@ -100,20 +100,6 @@ x-modular_src_make() {
 		cd "${S}"
 	fi
 	emake || die "emake failed"
-}
-
-x-modular_src_compile() {
-	if use multilib; then
-		multilib_toolchain_setup x86
-		cd "${WORKDIR}/32/${P}"
-		x-modular_src_configure
-		x-modular_src_make
-		multilib_toolchain_setup amd64
-		cd "${S}"
-	fi
-
-	x-modular_src_configure
-	x-modular_src_make
 }
 
 x-modular_src_install() {
