@@ -84,7 +84,7 @@ src_compile() {
 		fi
 
 		if use openvg; then
-			emake -C src/egl/openvg lion{_screen,_x11} sp{_screen,_x11} || die
+			emake -C src/egl/openvg lion{_screen,_x11} sp{_screen,_x11} text || die
 		fi
 	fi
 }
@@ -128,6 +128,7 @@ src_install() {
 			newbin src/egl/openvg/lion_x11 openvgtest_lion_x11 || die
 			newbin src/egl/openvg/sp_screen openvgtest_sp_screen || die
 			newbin src/egl/openvg/sp_x11 openvgtest_sp_x11 || die
+			newbin src/egl/openvg/text openvgtest_text || die
 		fi
 	fi
 }
