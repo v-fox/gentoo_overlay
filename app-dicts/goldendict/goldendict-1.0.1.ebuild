@@ -82,7 +82,7 @@ src_install() {
         insinto /usr/share/apps/${PN}/locale
         for i in $LANGS; do
                 if use linguas_${i}; then
-                        doins locale/"${i}"*.qm || ewarn "couldn't find $i translation"
+                        doins locale/"${i}"*.qm
                 fi
         done
 
