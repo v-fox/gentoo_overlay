@@ -298,7 +298,7 @@ src_configure() {
 
 	# support of OpenGL for Embedded Systems
 	if use gles; then
-		myconf+="$(use_enable gles1)
+		myconf+=" $(use_enable gles1)
 			 $(use_enable gles2)"
 	fi
 
@@ -354,7 +354,7 @@ src_configure() {
 	fi
 
 	# configure gallium support
-	myconf="${myconf} $(use_enable gallium)
+	myconf+=" $(use_enable gallium)
 		$(use_enable egl gallium-egl)
 		$(use_enable gles gles-overlay)"
 	if use gallium; then
