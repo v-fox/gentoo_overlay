@@ -162,12 +162,12 @@ pkg_setup() {
 		die "gles requested with gallium but without egl"
 	fi
 
-	if use gles && ! use gles1 && ! use gles2; then
+	if use gles && $(! use gles1 && ! use gles2); then
 		eerror "gles libraries need gles1 or gles2 API selected"
 		die "gles support enabled but no gles API selected"
 	fi
 
-	if use ! gles && use gles1 && use gles2; then
+	if use ! gles && $(use gles1 || use gles2); then
 		eerror "gles1 or gles2 API selected but gles support is not"
 		die "gles API selected but gles support is not enabled"
 	fi
