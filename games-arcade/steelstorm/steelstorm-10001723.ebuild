@@ -13,12 +13,15 @@ SLOT="0"
 KEYWORDS="~amd64 ~x86"
 IUSE="alsa +client dedicated +sdl"
 
-CDEPEND=">=media-libs/libsdl-1.2
+CDEPEND="sys-libs/zlib
+	>=media-libs/libsdl-1.2
 	>=media-libs/freetype-2.3.11
 	>=media-libs/libogg-1.1.4
 	>=media-libs/libvorbis-1.2.3
 	>=net-misc/curl-7.19.7
 	>=media-libs/libmodplug-0.8.7
+	media-libs/libpng
+	virtual/jpeg
 	virtual/opengl"
 RDEPEND="${CDEPEND}
 	=games-arcade/steelstorm-data-${PV}"
