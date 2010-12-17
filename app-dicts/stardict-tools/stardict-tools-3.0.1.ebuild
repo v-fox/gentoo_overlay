@@ -24,6 +24,13 @@ DEPEND="${RDEPEND}
 	>=dev-util/intltool-0.22
 	dev-util/pkgconfig"
 
+pkg_setup() {
+	if ! use editor && ! use tools; then
+		eerror "at least one use-flag should be enabled"
+		die "nothing selected for installation"
+	fi
+}
+
 src_install() {
 	if use editor; then
 		emake DESTDIR="${D}" install || die "failed to install editor"
