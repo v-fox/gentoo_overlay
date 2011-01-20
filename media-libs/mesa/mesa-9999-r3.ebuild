@@ -298,8 +298,9 @@ src_configure() {
 
 	# support of OpenGL for Embedded Systems
 	if use gles; then
-		myconf+=" $(use_enable gles1)
-			 $(use_enable gles2)"
+		myconf+=" --enable-shared-glapi
+			$(use_enable gles1)
+			$(use_enable gles2)"
 	fi
 
 	if use classic; then
