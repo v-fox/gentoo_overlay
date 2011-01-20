@@ -26,11 +26,13 @@ fi
 LICENSE="LGPL-2"
 SLOT="0"
 KEYWORDS=""
-IUSE="all +egl direct3d gallium gles +glsl openvg"
+IUSE="all +egl direct3d gallium gles gles1 gles2 +glsl openvg"
 
 RDEPEND="virtual/opengl
 	egl? ( media-libs/mesa[egl] )
 	gles? ( media-libs/mesa[egl,gles] )
+	gles1? ( media-libs/mesa[egl,gles,gles1] )
+	gles2? ( media-libs/mesa[egl,gles,gles2] )
 	direct3d? ( media-libs/mesa[egl,direct3d] )
 	openvg? ( || ( media-libs/mesa[egl,openvg]
 			media-libs/shivavg ) )"
@@ -39,6 +41,11 @@ DEPEND="${RDEPEND}"
 S="${WORKDIR}/${MY_P}"
 
 pkg_setup() {
+	if ! use gles && $(use gles1 || use gles2); then
+		eerror "'gles' flag must be enabled together with 'gles1' and/or 'gles2'"
+		die "Support for some version of GLES has been selected but not for GLES API itself"
+	fi
+
 	if use all; then
 		ewarn "Warning ! You are using 'all' use-flag which will override all other flags"
 		ewarn "and will install everything from mesa-demos package ! It is highly untested."
@@ -75,8 +82,13 @@ src_compile() {
 		fi
 
 		if use gles; then
-			emake -C src/egl/opengles1 gears{_screen,_x11} es1_info || die
-			emake -C src/egl/opengles2 es2gears || die
+			if use gles1; then
+				emake -C src/egl/opengles1 gears{_screen,_x11} es1_info || die
+			fi
+
+			if use gles2; then
+				emake -C src/egl/opengles2 es2gears es2_info || die
+			fi
 		fi
 
 		if use direct3d; then
@@ -113,10 +125,16 @@ src_install() {
 		fi
 
 		if use gles; then
-			newbin src/egl/opengles1/es1_info glesinfo || die
-			newbin src/egl/opengles1/gears_screen gles1gears_screen || die
-			newbin src/egl/opengles1/gears_x11 gles1gears_x11 || die
-			newbin src/egl/opengles2/es2gears gles2gears || die
+			if use gles1; then
+				newbin src/egl/opengles1/es1_info gles1info || die
+				newbin src/egl/opengles1/gears_screen gles1gears_screen || die
+				newbin src/egl/opengles1/gears_x11 gles1gears_x11 || die
+			fi
+
+			if use gles2; then
+				newbin src/egl/opengles2/es2_info gles2info || die
+				newbin src/egl/opengles2/es2gears gles2gears || die
+			fi
 		fi
 
 		if use direct3d; then
