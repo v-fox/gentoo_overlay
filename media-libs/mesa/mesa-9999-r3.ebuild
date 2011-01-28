@@ -397,7 +397,6 @@ src_configure() {
 		fi
 
 		myconf+=" $(use_enable llvm gallium-llvm)
-			  $(use_enable debug gallium-noop)
 			  $(use_enable video_cards_vmware gallium-svga)
 			  $(use_enable video_cards_nouveau gallium-nouveau)"
 		for i in i915 i965 radeon r600; do
