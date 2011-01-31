@@ -55,7 +55,6 @@ LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
 # keep blocks in rdepend for binpkg
 RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 	dev-libs/expat
-	sys-libs/talloc
 	glut? ( !media-libs/freeglut )
 	direct3d? ( app-emulation/wine )
 	X? 	( !<x11-base/xorg-server-1.7
