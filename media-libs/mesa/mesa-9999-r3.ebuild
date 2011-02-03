@@ -91,6 +91,8 @@ done
 
 DEPEND="${RDEPEND}
 	!<=x11-proto/xf86driproto-2.0.3
+	sys-devel/bison
+	sys-devel/flex
 	x11-misc/makedepend
 	>=x11-proto/glproto-1.4.11
 	>=x11-proto/dri2proto-2.2
