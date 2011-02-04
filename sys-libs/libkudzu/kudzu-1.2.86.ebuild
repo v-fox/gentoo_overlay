@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/sys-apps/kudzu/kudzu-1.2.83.ebuild,v 1.4 2008/07/20 06:28:48 mr_bones_ Exp $
 
-EAPI="2"
+EAPI="3"
 inherit eutils python multilib toolchain-funcs
 
 DESCRIPTION="Red Hat Hardware detection tools"

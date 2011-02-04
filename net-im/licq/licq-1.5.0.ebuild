@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/net-im/licq/licq-1.3.8-r1.ebuild,v 1.5 2010/01/13 20:26:52 armin76 Exp $
 
-EAPI=2
+EAPI=3
 MY_P="${P/_/-}"
 S="${WORKDIR}/${MY_P}"
 inherit cmake-utils eutils flag-o-matic

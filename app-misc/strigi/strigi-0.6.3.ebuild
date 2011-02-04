@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/app-misc/strigi/strigi-0.5.11.ebuild,v 1.3 2008/12/14 23:15:38 jmbsvicetto Exp $
 
-EAPI="2"
+EAPI="3"
 
 inherit cmake-utils eutils
 

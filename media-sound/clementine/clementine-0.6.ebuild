@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/media-sound/clementine/clementine-0.4.2.ebuild,v 1.2 2010/08/20 11:14:13 ssuominen Exp $
 
-EAPI=2
+EAPI=3
 
 LANGS=" ar bg ca cs da de el en_CA en_GB es fi fr gl hu it kk lt nb nl oc pl pt_BR pt ro ru sk sl sr sv tr uk zh_CN zh_TW"
 

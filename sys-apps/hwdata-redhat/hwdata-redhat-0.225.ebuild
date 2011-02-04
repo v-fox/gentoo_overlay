@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/sys-apps/hwdata-redhat/hwdata-redhat-0.217.ebuild,v 1.1 2008/07/15 17:05:57 darkside Exp $
 
-EAPI="2"
+EAPI="3"
 inherit flag-o-matic
 
 DESCRIPTION="Hardware identification and configuration data"

@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/x11-themes/qtcurve-qt4/qtcurve-qt4-0.67.1.ebuild,v 1.1 2009/07/29 13:38:23 yngwin Exp $
 
-EAPI="2"
+EAPI="3"
 KDE_REQUIRED="optional"
 inherit flag-o-matic cmake-utils kde4-base
 

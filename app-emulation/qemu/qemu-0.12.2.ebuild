@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/app-emulation/qemu/qemu-0.10.5.ebuild,v 1.1 2009/06/07 10:13:43 lu_zero Exp $
 
-EAPI="2"
+EAPI="3"
 
 inherit eutils flag-o-matic toolchain-funcs linux-info
 

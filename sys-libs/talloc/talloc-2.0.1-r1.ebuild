@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/sys-libs/talloc/talloc-2.0.1-r1.ebuild,v 1.7 2010/08/12 01:24:10 josejx Exp $
 
-EAPI="2"
+EAPI="3"
 
 inherit eutils autotools
 

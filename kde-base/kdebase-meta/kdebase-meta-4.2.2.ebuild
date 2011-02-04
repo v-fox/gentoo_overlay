@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/kde-base/kdebase-meta/kdebase-meta-4.2.2.ebuild,v 1.1 2009/04/11 22:33:43 alexxy Exp $
 
-EAPI="2"
+EAPI="3"
 
 inherit kde4-functions
 

@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/sys-apps/util-linux/util-linux-2.17-r1.ebuild,v 1.1 2010/02/09 01:55:11 vapier Exp $
 
-EAPI="2"
+EAPI="3"
 
 EGIT_REPO_URI="git://git.kernel.org/pub/scm/utils/util-linux-ng/util-linux-ng.git"
 inherit eutils toolchain-funcs libtool

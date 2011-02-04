@@ -4,7 +4,7 @@
 
 inherit eutils flag-o-matic linux-mod toolchain-funcs
 
-EAPI="2"
+EAPI="3"
 MY_PV=${PV/_/}
 MY_P=${PN}-${MY_PV}
 

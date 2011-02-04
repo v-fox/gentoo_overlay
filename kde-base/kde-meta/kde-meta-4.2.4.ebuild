@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/kde-base/kde-meta/kde-meta-4.2.1.ebuild,v 1.2 2009/03/12 11:25:45 scarabeus Exp $
 
-EAPI="2"
+EAPI="3"
 
 DESCRIPTION="KDE - merge this to pull in all non-developer, split kde-base/* packages"
 HOMEPAGE="http://www.kde.org/"

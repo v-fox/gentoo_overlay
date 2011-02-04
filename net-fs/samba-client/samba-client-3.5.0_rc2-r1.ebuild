@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/net-fs/samba-client/samba-client-3.5.0_rc2.ebuild,v 1.1 2010/01/26 19:03:08 patrick Exp $
 
-EAPI="2"
+EAPI="3"
 
 inherit pam confutils versionator multilib eutils toolchain-funcs autotools
 

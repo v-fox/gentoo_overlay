@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/net-p2p/ktorrent/ktorrent-2.2.8-r2.ebuild,v 1.7 2009/06/01 16:28:39 nixnut Exp $
 
-EAPI="2"
+EAPI="3"
 
 LANGS="ar bg br ca cs cy da de el en_GB es et fa fr gl hu it ja ka lt
 ms nb nds nl pa pl pt pt_BR ru rw sk sr sr@Latn sv tr uk zh_CN zh_TW"

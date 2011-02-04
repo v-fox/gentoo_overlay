@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/net-dns/dnsmasq/dnsmasq-2.50.ebuild,v 1.3 2009/09/01 13:59:38 jer Exp $
 
-EAPI=2
+EAPI=3
 
 inherit eutils toolchain-funcs flag-o-matic
 

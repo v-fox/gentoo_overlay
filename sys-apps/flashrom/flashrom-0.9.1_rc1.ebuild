@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/sys-apps/flashrom/flashrom-0.9.0.ebuild,v 1.2 2009/05/08 23:17:46 leio Exp $
 
-EAPI=2
+EAPI=3
 
 inherit eutils toolchain-funcs
 

@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/kde-base/kdemultimedia-meta/kdemultimedia-meta-4.2.1.ebuild,v 1.1 2009/03/04 21:05:04 alexxy Exp $
 
-EAPI="2"
+EAPI="3"
 inherit kde4-functions
 
 DESCRIPTION="kdemultimedia - merge this to pull in all kdemultimedia-derived packages"

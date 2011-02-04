@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/app-misc/usbirboy/usbirboy-0.3.1-r1.ebuild,v 1.1 2009/10/23 08:13:49 zzam Exp $
 
-EAPI=2
+EAPI=3
 inherit linux-mod eutils
 
 DESCRIPTION="Use home made infrared receiver connected via USB"

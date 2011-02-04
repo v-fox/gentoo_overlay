@@ -3,7 +3,7 @@
 
 inherit eutils toolchain-funcs flag-o-matic toolchain-funcs games
 
-EAPI="2"
+EAPI="3"
 MY_PN="quake2"
 FILE_STEM="KMQuake2-SDL-${PV}_src_unix"
 DATA_STEM="KMQuake2_data-0.19"

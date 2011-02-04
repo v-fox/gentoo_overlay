@@ -3,7 +3,7 @@
 # [v-fox] ftp://dfx.homeftp.net/services/GENTOO/v-fox
 # $Header: $
 
-EAPI="2"
+EAPI="3"
 inherit autotools eutils flag-o-matic subversion
 
 DESCRIPTION="PlayStation2 emulator"

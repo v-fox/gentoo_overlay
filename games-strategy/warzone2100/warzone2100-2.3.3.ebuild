@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/games-strategy/warzone2100/warzone2100-2.3.2.ebuild,v 1.1 2010/07/28 19:10:14 mr_bones_ Exp $
 
-EAPI=2
+EAPI=3
 inherit versionator games
 
 MY_PV=$(get_version_component_range -2)

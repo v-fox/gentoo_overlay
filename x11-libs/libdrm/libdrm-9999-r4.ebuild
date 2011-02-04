@@ -3,7 +3,7 @@
 # $Header: /var/cvsroot/gentoo-x86/x11-libs/libdrm/libdrm-2.3.0.ebuild,v 1.8 2007/05/20 20:47:52 jer Exp $
 
 # Must be before x-modular eclass is inherited
-EAPI="2"
+EAPI="3"
 inherit x-modular
 
 EGIT_REPO_URI="git://anongit.freedesktop.org/git/mesa/drm"

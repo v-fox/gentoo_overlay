@@ -4,7 +4,7 @@
 
 inherit autotools mount-boot eutils flag-o-matic toolchain-funcs
 
-EAPI=2
+EAPI=3
 if [[ ${PV} == "9999" ]] ; then
 	ESVN_REPO_URI="svn://svn.sv.gnu.org/grub/trunk/grub2"
 	inherit subversion

@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/media-sound/amarok/amarok-1.4.10_p20090130-r3.ebuild,v 1.1 2009/07/10 21:02:07 jmbsvicetto Exp $
 
-EAPI="2"
+EAPI="3"
 
 ARTS_REQUIRED="never"
 

@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/x11-drivers/nvidia-drivers/nvidia-drivers-190.42-r1.ebuild,v 1.2 2009/10/22 15:31:06 cardoe Exp $
 
-EAPI="2"
+EAPI="3"
 
 inherit eutils multilib versionator linux-mod flag-o-matic nvidia-driver
 

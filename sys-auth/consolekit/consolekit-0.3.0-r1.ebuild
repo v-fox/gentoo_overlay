@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/sys-auth/consolekit/consolekit-0.3.0-r1.ebuild,v 1.3 2009/06/11 23:00:00 eva Exp $
 
-EAPI="2"
+EAPI="3"
 
 inherit autotools eutils multilib pam
 

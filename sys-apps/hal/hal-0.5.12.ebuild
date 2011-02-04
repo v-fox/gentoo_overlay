@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/sys-apps/hal/hal-0.5.12_rc1-r6.ebuild,v 1.2 2009/06/07 22:59:48 dang Exp $
 
-EAPI="2"
+EAPI="3"
 
 inherit eutils linux-info autotools flag-o-matic multilib
 

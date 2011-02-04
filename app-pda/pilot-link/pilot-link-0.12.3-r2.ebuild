@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/app-pda/pilot-link/pilot-link-0.12.3-r2.ebuild,v 1.1 2009/04/26 18:32:54 serkan Exp $
 
-EAPI=2
+EAPI=3
 
 inherit perl-module java-pkg-opt-2 eutils autotools distutils
 

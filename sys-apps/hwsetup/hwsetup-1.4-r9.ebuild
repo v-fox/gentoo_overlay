@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/sys-apps/hwsetup/hwsetup-1.2-r1.ebuild,v 1.5 2009/06/16 12:04:11 flameeyes Exp $
 
-EAPI="2"
+EAPI="3"
 inherit eutils toolchain-funcs flag-o-matic
 
 DESCRIPTION="Hardware setup program from Knoppix - used only on LiveCD"
