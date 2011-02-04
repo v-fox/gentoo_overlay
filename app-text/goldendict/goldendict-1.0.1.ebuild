@@ -27,7 +27,8 @@ LICENSE="GPL-3"
 SLOT="0"
 
 LANGS="af bg ca cs cy da de el en eo es et fo fr ga gl he hr hu ia id it ku lt lv mi mk ms nb nl nn pl pt ro ru sk sl sv sw tn uk zu"
-IUSE="+addons"
+LANGSLONG="ar_SA bg_BG cs_CZ de_DE el_GR it_IT lt_LT ru_RU uk_UA vi_VN zh_CN"
+IUSE="kde +addons"
 for i in ${LANGS}; do
 	IUSE="${IUSE} linguas_${i}"
 done
@@ -39,11 +40,16 @@ RDEPEND="sys-libs/zlib
 	>=app-text/hunspell-1.2
 	media-libs/libogg
 	media-libs/libvorbis
-	media-sound/phonon
-	>=x11-libs/qt-core-4.5
-	>=x11-libs/qt-webkit-4.5
-	x11-libs/libXtst"
-DEPEND="${RDEPEND}"
+	x11-libs/libXtst
+	>=x11-libs/qt-core-4.5:4[exceptions]
+	>=x11-libs/qt-gui-4.5:4[exceptions]
+	>=x11-libs/qt-webkit-4.5:4[exceptions]
+	!kde? ( || (
+		>=x11-libs/qt-phonon-4.5:4[exceptions]
+		media-sound/phonon ) )
+	kde? ( media-sound/phonon )"
+DEPEND="${RDEPEND}
+	dev-util/pkgconfig"
 for i in ${LANGS}; do
 	RDEPEND="${RDEPEND}
 		linguas_${i}? ( app-dicts/myspell-${i} )"
@@ -56,6 +62,22 @@ src_unpack() {
 	else
 		unpack "${P}.tar.bz2"
 	fi
+}
+
+src_prepare() {
+	qt4-r2_src_prepare
+
+	# linguas
+	for x in ${LANGSLONG}; do
+		if use !linguas_${x%_*}; then
+			sed -e "s,locale/${x}.ts,," \
+				-i ${PN}.pro || die
+		fi
+	done
+
+	# do not install duplicates
+	sed -e '/[icon,desktop]s2/d' \
+		-i ${PN}.pro || die
 
 	if use addons; then
 		# get en<->ru funny pack
@@ -65,29 +87,25 @@ src_unpack() {
 			unpack "${RUPACK}-${RUPACK_V}.tar.bz2"
 		fi
 	fi
-}
-
-src_configure() {
-	einfo "nothing to configure"
-}
-
-src_compile() {
-        PREFIX=/usr eqmake4 || die "qmake failed"
-        emake || die "emake failed"
-}
-
-src_install() {
-	emake INSTALL_ROOT="${D}" install || die "emake install failed"
-        # install locales
-        insinto /usr/share/apps/${PN}/locale
-        for i in $LANGS; do
-                if use linguas_${i}; then
-                        doins locale/"${i}"*.qm
-                fi
-        done
 
 	# what is that ? not for us
 	rm -r "${D}/usr/share/app-install" || die "couldn't delete useless stuff"
+}
+
+src_configure() {
+	PREFIX="${EPREFIX}"/usr eqmake4
+}
+
+src_install() {
+	qt4-r2_src_install
+
+	# install translations
+	insinto /usr/share/apps/${PN}/locale
+	for x in ${LANGSLONG}; do
+		if use linguas_${x%_*}; then
+			doins locale/${x}.qm || die
+		fi
+	done
 
 	if use addons; then
 		insinto "/usr/share/apps/${PN}"
