@@ -25,7 +25,7 @@ IUSE="debug elibc_FreeBSD"
 if [[ ${CATEGORY} == "kde-base" ]]; then
 	if [[ ${PV##*.} -lt 10 ]] ; then
 		# Keep old ebuilds as is
-	        IUSE="${IUSE} kdeenablefinal"
+		IUSE="${IUSE} kdeenablefinal"
 	else
 		# Don't use --enable-final anymore. Does only cause problems for users and
 		# as an unwelcome extra invalid bug reports, without any reasonable benefit.
@@ -131,50 +131,58 @@ kde_pkg_setup() {
 
 # @FUNCTION: kde_src_unpack
 # @DESCRIPTION:
-# This function unpacks the sources and patches it. The patches need to be named
+# This function unpacks the sources.
+# For EAPI 0 and 1 it allso runs kde_src_prepare.
+kde_src_unpack() {
+	debug-print-function $FUNCNAME "$@"
+	[[ -z "$*" ]] || die "$FUNCNAME no longer supports stages."
+	[[ -z "${KDE_S}" ]] && KDE_S="${S}"
+	# Don't use base_src_unpack, as that will call base_src_prepare
+	# in the wrong place
+	[[ -d "${KDE_S}" ]] || unpack ${A}
+	case ${EAPI:-0} in
+		0|1) kde_src_prepare ;;
+	esac
+}
+
+# @FUNCTION: kde_src_prepare
+# @DESCRIPTION:
+# This function patches the sources. The patches need to be named
 # $PN-$PV-*{diff,patch}
 #
 # This function also handles the linguas if extragear-like packaging is enabled.
 # (See USE_KEG_PACKAGING)
-kde_src_unpack() {
+kde_src_prepare() {
 	debug-print-function $FUNCNAME "$@"
-
-	[[ -z "${KDE_S}" ]] && KDE_S="${S}"
-
 	local PATCHDIR="${WORKDIR}/patches/"
-	if [[ -z "$@" ]] ; then
-		# Unpack first and deal with KDE patches after examing possible patch sets.
-		# To be picked up, patches need to be named $PN-$PV-*{diff,patch} and be
-		# placed in $PATCHDIR. Monolithic ebuilds will use the split ebuild patches.
-		[[ -d "${KDE_S}" ]] || base_src_unpack unpack
-		if [[ -d "${PATCHDIR}" ]] ; then
-			local packages p f
-			if is-parent-package ${CATEGORY}/${PN} ; then
-				packages="$(get-child-packages ${CATEGORY}/${PN})"
-				packages="${packages//${CATEGORY}\//} ${PN}"
-			else
-				packages="${PN}"
-			fi
-			if [[ -n ${PATCHES[@]} && $(declare -p PATCHES) != 'declare -a '* ]]; then
-				PATCHES=(${PATCHES})
-			fi
-			for p in ${packages}; do
-				for f in "${PATCHDIR}"/${p}-${PV}-*{diff,patch}; do
+
+	# Unpack first and deal with KDE patches after examing possible patch sets.
+	# To be picked up, patches need to be named $PN-$PV-*{diff,patch} and be
+	# placed in $PATCHDIR. Monolithic ebuilds will use the split ebuild patches.
+	if [[ -d "${PATCHDIR}" ]] ; then
+		local packages p f
+		if is-parent-package ${CATEGORY}/${PN} ; then
+			packages="$(get-child-packages ${CATEGORY}/${PN})"
+			packages="${packages//${CATEGORY}\//} ${PN}"
+		else
+			packages="${PN}"
+		fi
+		if [[ -n ${PATCHES[@]} && $(declare -p PATCHES) != 'declare -a '* ]]; then
+			PATCHES=(${PATCHES})
+		fi
+		for p in ${packages}; do
+			for f in "${PATCHDIR}"/${p}-${PV}-*{diff,patch}; do
+				[[ -e ${f} ]] && PATCHES+=("${f}")
+			done
+			if [[ -n "${KDEBASE}" ]]; then
+				for f in "${PATCHDIR}"/${p}-${SLOT}-*{diff,patch}; do
 					[[ -e ${f} ]] && PATCHES+=("${f}")
 				done
-				if [[ -n "${KDEBASE}" ]]; then
-					for f in "${PATCHDIR}"/${p}-${SLOT}-*{diff,patch}; do
-						[[ -e ${f} ]] && PATCHES+=("${f}")
-					done
-				fi
-			done
-		fi
-		[[ -n ${PATCHES[@]} ]] && base_src_prepare
-	else
-		# Call base_src_unpack, which has sections, to do unpacking and patching
-		# step by step transparently as defined in the ebuild.
-		base_src_unpack "$@"
+			fi
+		done
 	fi
+
+	base_src_prepare
 
 	# if extragear-like packaging is enabled, set the translations and the
 	# documentation depending on LINGUAS settings
@@ -227,13 +235,6 @@ kde_src_unpack() {
 		ln -s "${WORKDIR}/admin" "${KDE_S}/admin" || die "Unable to symlink the new admin/ directory"
 		eend 0
 	fi
-}
-
-# dull function for keep working eapi2 and later
-kde_src_prepare() {
-	:
-	# prevent the patches applied twice; we cant repatch src_unpack onto two
-	# functions (unpack and prepare)
 }
 
 # @FUNCTION: kde_src_configure

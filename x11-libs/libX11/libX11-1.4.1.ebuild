@@ -5,7 +5,7 @@
 # Must be before x-modular eclass is inherited
 #SNAPSHOT="yes"
 
-EAPI="3"
+EAPI="2"
 inherit x-modular toolchain-funcs flag-o-matic
 
 DESCRIPTION="X.Org X11 library"

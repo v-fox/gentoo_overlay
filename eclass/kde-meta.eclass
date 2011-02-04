@@ -356,29 +356,37 @@ kde-meta_src_unpack() {
 			sed -i -e s:"bin_SCRIPTS = startkde.*"::g "${S}"/Makefile.am.in
 		fi
 
-		# for ebuilds with extended src_unpack
-		cd "${S}"
-
 	;;
 	makefiles)
 
-		# Create Makefile.am files
-		create_fullpaths
-		change_makefiles "${S}" "false"
-
-		# for ebuilds with extended src_unpack
-		cd "${S}"
+		case ${EAPI:-0} in
+			0|1) kde-meta_src_prepare ;;
+		esac
 
 	;;
 	esac
 	done
+
+	# for ebuilds with extended src_unpack
+	cd "${S}"
 }
 
-# dull function for keep working eapi2 and later
+# @FUNCTION: kde-meta_src_prepare
+# @DESCRIPTION:
+# Source tree preparation compatible with eapi 2
 kde-meta_src_prepare() {
-	:
-	# prevent the patches applied twice; we cant repatch src_unpack onto
-	# two functions (unpack and prepare)
+	debug-print-function $FUNCNAME "$@"
+
+	set_common_variables
+
+	case ${EAPI:-0} in
+		0|1) ;; # Don't call kde_src_prepare, as kde_src_unpack already did so
+		*) kde_src_prepare ;;
+	esac
+
+	# Create Makefile.am files
+	create_fullpaths
+	change_makefiles "${S}" "false"
 }
 
 # @FUNCTION: kde-meta_src_configure

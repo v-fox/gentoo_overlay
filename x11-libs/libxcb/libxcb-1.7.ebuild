@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/x11-libs/libxcb/libxcb-1.1.ebuild,v 1.3 2007/11/07 08:40:01 dberkholz Exp $
 
-EAPI="3"
+EAPI="2"
 inherit x-modular python multilib
 
 DESCRIPTION="X C-language Bindings library"
