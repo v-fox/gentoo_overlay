@@ -12,7 +12,7 @@ SRC_URI="http://www.eidolons-inn.net/tiki-download_file.php?fileId=572 -> Fusion
 LICENSE="as-is"
 SLOT="0"
 KEYWORDS="x86 ~amd64"
-IUSE="mp3"
+IUSE="alsa mp3"
 
 RDEPEND="virtual/opengl
 	amd64? ( alsa? ( app-emulation/emul-linux-x86-soundlibs )
