@@ -47,8 +47,8 @@ for card in ${VIDEO_CARDS}; do
 done
 
 IUSE="${IUSE_VIDEO_CARDS}
-	debug ddx doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux static X kernel_FreeBSD
-	+classic +dri +egl +gallium +glu +drm +nptl +opengl +xcb"
+	debug ddx doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux static wayland X kernel_FreeBSD
+	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
 # keep correct libdrm and dri2proto dep
@@ -56,6 +56,7 @@ LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
 RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 	dev-libs/expat
 	glut? ( !media-libs/freeglut )
+	drm? 	( >=sys-fs/udev-150 )
 	direct3d? ( app-emulation/wine )
 	X? 	( !<x11-base/xorg-server-1.7
 		  !<=x11-proto/xf86driproto-2.0.3
@@ -75,8 +76,7 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x11-libs/libXdamage
 		  x11-libs/libdrm
 		  x11-libs/libICE )
-	xcb? 	( || ( <=x11-libs/libX11-1.3.99[xcb]
-		      >=x11-libs/libX11-1.3.99 ) )
+	xcb? 	( >=x11-libs/libX11-1.4 )
 	llvm? 	( sys-devel/llvm
 		  x86? ( dev-libs/udis86 )
 		  amd64? ( dev-libs/udis86[pic] ) )
@@ -176,8 +176,14 @@ pkg_setup() {
 	if ! use egl; then
 		ewarn "egl support is disabled ! egl is really must-have for modern systems"
 		ewarn "it will be better to enable it"
+		use gles 	&& die "gles can't work without egl. failing..."
 		use openvg 	&& die "openvg can't work without egl. failing..."
 		use direct3d 	&& die "direct3d can't work without egl. failing..."
+		use wayland 	&& die "wayland support can't work without egl. failing..."
+	else
+		if use dri2 && $(! use drm && ! use X); then
+			die "dri2 needs drm or X support or both enabled"
+		fi
 	fi
 
 	if use opengl && ! use classic && ! use gallium; then
@@ -418,6 +424,7 @@ src_configure() {
 		myconf+=" --with-egl-platforms="
 		use X 			&& myconf+=",x11"
 		use drm 		&& myconf+=",drm"
+		use wayland 		&& myconf+=",wayland"
 		use direct3d 		&& myconf+=",gdi"
 		use video_cards_fbdev 	&& myconf+=",fbdev"
 	fi
@@ -445,6 +452,12 @@ src_configure() {
 		myconf+=" --enable-64-bit --disable-32-bit"
 		cd "${S}"
 	fi
+
+# wait for it to go upstream...
+#	if use dri2 && use egl; then
+#		myconf+=" $(use_enable drm egl-dri2-drm)
+#			  $(use_enable X egl-dri2-x11)"
+#	fi
 
 	econf $(use_with X x) \
 	      $(use_enable debug) \
