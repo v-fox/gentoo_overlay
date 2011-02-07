@@ -58,6 +58,7 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 	glut? ( !media-libs/freeglut )
 	drm? 	( >=sys-fs/udev-150 )
 	direct3d? ( app-emulation/wine )
+	wayland? ( x11-base/wayland )
 	X? 	( !<x11-base/xorg-server-1.7
 		  !<=x11-proto/xf86driproto-2.0.3
 		  ddx? ( video_cards_r300? ( !x11-drivers/xf86-video-ati )
