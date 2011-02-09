@@ -421,15 +421,6 @@ src_configure() {
 		fi
 	fi
 
-	if use egl; then
-		myconf+=" --with-egl-platforms="
-		use X 			&& myconf+=",x11"
-		use drm 		&& myconf+=",drm"
-		use wayland 		&& myconf+=",wayland"
-		use direct3d 		&& myconf+=",gdi"
-		use video_cards_fbdev 	&& myconf+=",fbdev"
-	fi
-
 	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
@@ -452,6 +443,15 @@ src_configure() {
 		multilib_toolchain_setup amd64
 		myconf+=" --enable-64-bit --disable-32-bit"
 		cd "${S}"
+	fi
+
+	if use egl; then
+		myconf+=" --with-egl-platforms="
+		use X 			&& myconf+=",x11"
+		use drm 		&& myconf+=",drm"
+		use wayland 		&& myconf+=",wayland"
+		use direct3d 		&& myconf+=",gdi"
+		use video_cards_fbdev 	&& myconf+=",fbdev"
 	fi
 
 # wait for it to go upstream...
