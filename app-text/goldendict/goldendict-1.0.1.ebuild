@@ -26,7 +26,7 @@ HOMEPAGE="http://goldendict.org"
 LICENSE="GPL-3"
 SLOT="0"
 
-LANGS="af bg ca cs cy da de el en eo es et fo fr ga gl he hr hu ia id it ku lt lv mi mk ms nb nl nn pl pt ro ru sk sl sv sw tn uk zu"
+LANGS="af ar bg ca cs cy da de el en eo es et fo fr ga gl he hr hu ia id it ku lt lv mi mk ms nb nl nn pl pt ro ru sk sl sv sw tn uk vi zh zu"
 LANGSLONG="ar_SA bg_BG cs_CZ de_DE el_GR it_IT lt_LT ru_RU uk_UA vi_VN zh_CN"
 IUSE="kde +addons"
 for i in ${LANGS}; do
@@ -87,9 +87,6 @@ src_prepare() {
 			unpack "${RUPACK}-${RUPACK_V}.tar.bz2"
 		fi
 	fi
-
-	# what is that ? not for us
-	rm -r "${D}/usr/share/app-install" || die "couldn't delete useless stuff"
 }
 
 src_configure() {
