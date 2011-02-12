@@ -47,7 +47,7 @@ for card in ${VIDEO_CARDS}; do
 done
 
 IUSE="${IUSE_VIDEO_CARDS}
-	debug ddx doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux static wayland X kernel_FreeBSD
+	debug ddx doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux shared static wayland X kernel_FreeBSD
 	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
@@ -360,6 +360,10 @@ src_configure() {
 		fi
 	else
 		use dri && myconf+=" --with-dri-drivers="
+	fi
+
+	if use dri; then
+		myconf+=" $(use_enable shared shared-dricore)"
 	fi
 
 	# configure gallium support
