@@ -14,7 +14,7 @@ RDEPEND=">=x11-base/xorg-server-1.7[-minimal]
 	dri? ( || ( >=x11-libs/libdrm-2.4.22[video_cards_radeon]
 		    >=x11-libs/libdrm-2.4.22[video_cards_r300]
 		    >=x11-libs/libdrm-2.4.22[video_cards_r600] ) )
-	kms? ( >=x11-libs/libdrm-2.4.22[kms] )"
+	kms? ( >=x11-libs/libdrm-2.4.22[libkms] )"
 DEPEND="${RDEPEND}
 	x11-proto/fontsproto
 	x11-proto/randrproto
