@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: /var/cvsroot/gentoo-x86/media-libs/mesa/mesa-7.0.2.ebuild,v 1.6 2007/11/16 18:16:30 dberkholz Exp $
 
-EAPI=3
+EAPI=4
 
 EGIT_REPO_URI="git://anongit.freedesktop.org/mesa/mesa"
 
@@ -82,7 +82,6 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x86? ( dev-libs/udis86 )
 		  amd64? ( dev-libs/udis86[pic] ) )
 	motif? 	( x11-libs/openmotif )
-	doc? 	( app-doc/opengl-manpages )
 	${LIBDRM_DEPSTRING}[video_cards_nouveau?,video_cards_vmware?]"
 
 for card in ${INTEL_CARDS}; do
@@ -443,7 +442,7 @@ src_configure() {
 			$(use_enable glu) \
 			$(use_enable glut) \
 			${myconf} \
-			--disable-gallium-llvm || die "doing 32bit stuff failed"
+			--disable-gallium-llvm
 		multilib_toolchain_setup amd64
 		myconf+=" --enable-64-bit --disable-32-bit"
 		cd "${S}"
@@ -476,19 +475,19 @@ src_configure() {
 	      $(use_enable egl) \
 	      $(use_enable glu) \
 	      $(use_enable glut) \
-	      ${myconf} || die
+	      ${myconf}
 }
 
 src_compile() {
 	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
-		emake || die "doing 32bit stuff failed"
+		emake
 		multilib_toolchain_setup amd64
 	fi
 
 	cd "${S}"
-	emake || die
+	emake
 }
 
 src_install() {
@@ -497,7 +496,7 @@ src_install() {
 		multilib_toolchain_setup x86
 		emake \
 			DESTDIR="${D}" \
-			install || die "Installation of 32bit stuff failed"
+			install
 		dynamic_libgl_install
 		multilib_toolchain_setup amd64
 		cd "${S}"
@@ -508,12 +507,25 @@ src_install() {
 
 	# Save the glsl-compiler for later use
 	if ! tc-is-cross-compiler; then
-		dobin "${S}"/src/glsl/glsl_compiler || die
+		dobin "${S}"/src/glsl/glsl_compiler
 	fi
 	# Remove redundant headers
 	# Glew includes
 	rm -f "${D}"/usr/include/GL/{glew,glxew,wglew}.h \
 		|| die "Removing glew includes failed."
+
+	if use doc; then
+		einfo "installing documentation"
+		for i in "${S}"/docs/*;do 
+			if [ "$(basename $i)" = "$(basename $i .html).html" ]; then
+				dohtml "${i}"
+			elif [ -d "${i}" ]; then
+				dodoc -r "${i}"
+			else
+				dodoc "${i}"
+			fi
+		done
+	fi
 }
 
 pkg_postinst() {
