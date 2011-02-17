@@ -48,7 +48,7 @@ done
 
 IUSE="${IUSE_VIDEO_CARDS}
 	debug ddx doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux shared static wayland X kernel_FreeBSD
-	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb"
+	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +s3tc +xcb"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
 # keep correct libdrm and dri2proto dep
@@ -82,6 +82,7 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x86? ( dev-libs/udis86 )
 		  amd64? ( dev-libs/udis86[pic] ) )
 	motif? 	( x11-libs/openmotif )
+	s3tc? 	( media-libs/libtxc-dxtn )
 	${LIBDRM_DEPSTRING}[video_cards_nouveau?,video_cards_vmware?]"
 
 for card in ${INTEL_CARDS}; do
