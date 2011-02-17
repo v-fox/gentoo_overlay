@@ -21,14 +21,14 @@ VIDEO_CARDS="i915 i965 intel nouveau r300 r600 radeon vmware"
 for card in ${VIDEO_CARDS}; do
 	IUSE_VIDEO_CARDS+=" video_cards_${card}"
 done
-IUSE="${IUSE_VIDEO_CARDS} +kms +udev"
+IUSE="${IUSE_VIDEO_CARDS} +libkms +udev"
 
 RESTRICT="test" # see bug #236845
 
 RDEPEND="dev-libs/libpthread-stubs"
 DEPEND="${RDEPEND}"
 
-CONFIGURE_OPTIONS="$(use_enable kms libkms)
+CONFIGURE_OPTIONS="$(use_enable libkms)
 		   $(use_enable udev)
 		   $(use_enable video_cards_nouveau nouveau-experimental-api)
 		   $(use_enable video_cards_vmware vmwgfx-experimental-api)"
