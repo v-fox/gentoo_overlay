@@ -28,7 +28,7 @@ SRC_URI="${SRC_URI}
 
 LICENSE="LGPL-2.1"
 SLOT="0"
-IUSE="alsa capi cups dbus esd +gecko glu gphoto gsm gstreamer hal icns jack jpeg cms ldap mp3 nas ncurses +openal opencl opengl ssl oss perl png +pthread samba scanner gnutls tiff truetype xml v4l2 X +win16 win64 newdib"
+IUSE="alsa capi cups dbus esd +gecko glu gphoto2 gsm gstreamer hal icns jack jpeg cms ldap mp3 nas ncurses +openal opencl opengl ssl oss perl png +pthread samba scanner gnutls tiff truetype xml v4l2 X +win16 win64 newdib"
 RESTRICT="test" #72375
 
 CDEPEND="media-fonts/corefonts
@@ -54,7 +54,7 @@ CDEPEND="media-fonts/corefonts
 	nas? 	( media-libs/nas )
 	cups? 	( net-print/cups )
 	glu? 	( virtual/glu )
-	gphoto? ( media-libs/libgphoto2 )
+	gphoto2? ( media-libs/libgphoto2 )
 	gsm?	( media-sound/gsm )
 	gstreamer? ( media-libs/gstreamer )
 	openal? ( media-libs/openal )
@@ -168,7 +168,7 @@ src_configure() {
 		$(use_with cups) \
 		$(use_with esd) \
 		$(use_with glu) \
-		$(use_with gphoto) \
+		$(use_with gphoto2) \
 		$(use_with gsm) \
 		$(use_with gstreamer) \
 		$(use_with mp3 mpg123) \
