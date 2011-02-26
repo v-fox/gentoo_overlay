@@ -9,7 +9,7 @@ inherit kde4-base
 
 DESCRIPTION="show the events from Akonadi resources"
 HOMEPAGE="http://kde-look.org/content/show.php/Eventlist?content=107779"
-SRC_URI="http://kde-look.org/CONTENT/content-files/107779-plasmoid-${P}.tar.bz2"
+SRC_URI="http://kde-look.org/CONTENT/content-files/107779-plasmoid-${P}.tar.gz"
 
 LICENSE="GPL-2"
 SLOT="0"
