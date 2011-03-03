@@ -34,7 +34,7 @@ DEPEND="${RDEPEND}
 PROVIDE="virtual/bootloader"
 
 export STRIP_MASK="*/grub/*/*.mod"
-QA_EXECSTACK="sbin/grub-probe sbin/grub-setup sbin/grub-mkdevicemap bin/grub-script-check bin/grub-fstest"
+QA_EXECSTACK="sbin/grub-probe sbin/grub-setup sbin/grub-mkdevicemap bin/grub-script-check bin/grub-fstest $(get_libdir)/${PN}/i386-pc/setjmp.mod $(get_libdir)/${PN}/i386-pc/kernel.img"
 
 src_unpack() {
 	if [[ ${PV} == "9999" ]] ; then
