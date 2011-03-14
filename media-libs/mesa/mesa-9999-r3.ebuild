@@ -78,9 +78,7 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x11-libs/libdrm
 		  x11-libs/libICE )
 	xcb? 	( >=x11-libs/libX11-1.4 )
-	llvm? 	( sys-devel/llvm
-		  x86? ( dev-libs/udis86 )
-		  amd64? ( dev-libs/udis86[pic] ) )
+	llvm? 	( sys-devel/llvm )
 	motif? 	( x11-libs/openmotif )
 	s3tc? 	( media-libs/libtxc-dxtn )
 	${LIBDRM_DEPSTRING}[video_cards_nouveau?,video_cards_vmware?]"
