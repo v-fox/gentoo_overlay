@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header:
 
-EAPI=3
+EAPI=4
 inherit cmake-utils eutils toolchain-funcs
 
 MY_P=${PN}-soft-${PV}
@@ -23,24 +23,16 @@ DEPEND="${RDEPEND}"
 
 S=${WORKDIR}/${MY_P}
 DOCS="alsoftrc.sample"
-PATCHES=( "${FILESDIR}/${P}-oss.patch" )
+PATCHES=""
 
-switch_to32() {
+switch_tofrom() {
 	cd "${WORKDIR}"
-	einfo "switching sources to 32-bit building environment"
-	for i in '' _build;do
-
-		mv "${MY_P}${i}" "${MY_P}${i}_64"
-		mv "${MY_P}${i}_32" "${MY_P}${i}"
-	done
-}
-
-switch_to64() {
-	cd "${WORKDIR}"
-	einfo "switching sources to 64-bit building environment"
-	for i in '' _build;do
-		mv "${MY_P}${i}" "${MY_P}${i}_32"
-		mv "${MY_P}${i}_64" "${MY_P}${i}"
+	einfo "switching sources to ${1}-bit building environment"
+	for i in "${MY_P}" "${P}_build";do
+		[ -d "${i}" ] && \
+			(mv -v "${i}" "${i}_${2}" || die)
+		[ -d "${i}_${1}" ] && \
+			(mv -v "${i}_${1}" "${i}" || die)
 	done
 }
 
@@ -59,7 +51,7 @@ src_unpack() {
 
 	if use multilib; then
 		cd "${WORKDIR}"
-		mv "${MY_P}${i}" "${MY_P}${i}_32"
+		mv -v "${MY_P}" "${MY_P}_32"
 		unpack "${A}"
 	fi
 }
@@ -85,11 +77,11 @@ src_configure() {
 	cmake-utils_src_configure
 
 	if use multilib; then
-		switch_to32
+		switch_tofrom 32 64
 		multilib_toolchain_setup x86
 		cmake-utils_src_configure
 		multilib_toolchain_setup amd64
-		switch_to64
+		switch_tofrom 64 32
 	fi
 }
 
@@ -97,11 +89,11 @@ src_compile() {
 	cmake-utils_src_compile
 
 	if use multilib; then
-		switch_to32
+		switch_tofrom 32 64
 		multilib_toolchain_setup x86
 		cmake-utils_src_compile
 		multilib_toolchain_setup amd64
-		switch_to64
+		switch_tofrom 64 32
 	fi
 }
 
@@ -109,12 +101,12 @@ src_install() {
 	cmake-utils_src_install
 
 	if use multilib; then
-		switch_to32
+		switch_tofrom 32 64
 		multilib_toolchain_setup x86
 		cd "${S}"
 		cmake-utils_src_install
 		multilib_toolchain_setup amd64
-		switch_to64
+		switch_tofrom 64 32
 	fi
 }
 
