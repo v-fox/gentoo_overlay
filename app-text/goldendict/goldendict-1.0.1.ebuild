@@ -46,8 +46,8 @@ RDEPEND="sys-libs/zlib
 	>=x11-libs/qt-webkit-4.5:4[exceptions]
 	!kde? ( || (
 		>=x11-libs/qt-phonon-4.5:4[exceptions]
-		media-sound/phonon ) )
-	kde? ( media-sound/phonon )"
+		media-libs/phonon ) )
+	kde? ( media-libs/phonon )"
 DEPEND="${RDEPEND}
 	dev-util/pkgconfig"
 for i in ${LANGS}; do
