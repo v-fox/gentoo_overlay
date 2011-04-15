@@ -48,7 +48,7 @@ done
 
 IUSE="${IUSE_VIDEO_CARDS}
 	debug ddx doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux shared static wayland X kernel_FreeBSD
-	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +s3tc +xcb"
+	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb +patented +texture-float +s3tc"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
 # keep correct libdrm and dri2proto dep
@@ -202,6 +202,12 @@ pkg_setup() {
 		die "gallium and X needed for use of this ddx"
 	fi
 
+	if ! use patented && $(use texture-float || use s3tc); then
+		eerror "floating-point framebuffers and s3tc texture compression are patented by corporate"
+		eerror "extortionists. you will need to enable 'patented' flag and watch out for them"
+		die "owned by racketeers"
+	fi
+
 	if use debug; then
 		append-flags -g
 	fi
@@ -301,6 +307,9 @@ src_prepare() {
 src_configure() {
 	local myconf="$(use_enable opengl)
 		      $(use_enable openvg)"
+
+	# floating point textures
+	myconf="$(use_enable texture-float)"
 
 	# support of OpenGL for Embedded Systems
 	if use gles; then
