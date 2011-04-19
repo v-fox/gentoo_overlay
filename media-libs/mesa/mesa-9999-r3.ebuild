@@ -402,7 +402,7 @@ src_configure() {
 			gallium_i915="1"
 			gallium_i965="1"
 		fi
-		use video_cards_r300 && gallium_radeon="1"
+		use video_cards_r300 && gallium_r300="1"
 		use video_cards_r600 && gallium_r600="1"
 		if ! use video_cards_r300 && ! use video_cards_r600 && use video_cards_radeon; then
 			gallium_r300="1"
@@ -412,7 +412,7 @@ src_configure() {
 		myconf+=" $(use_enable llvm gallium-llvm)
 			  $(use_enable video_cards_vmware gallium-svga)
 			  $(use_enable video_cards_nouveau gallium-nouveau)"
-		for i in i915 i965 radeon r600; do
+		for i in i915 i965 r300 r600; do
 			local current="gallium_$i"
 			eval current="\$$current"
 			[ ! -z "$current" ] && \
