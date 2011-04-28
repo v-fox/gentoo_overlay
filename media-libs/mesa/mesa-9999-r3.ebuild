@@ -11,7 +11,7 @@ if [[ ${PV} = 9999* ]]; then
 	EXPERIMENTAL="true"
 fi
 
-inherit base autotools multilib flag-o-matic toolchain-funcs versionator ${GIT_ECLASS}
+inherit base autotools flag-o-matic toolchain-funcs versionator ${GIT_ECLASS}
 
 OPENGL_DIR="xorg-x11"
 
@@ -78,8 +78,7 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x11-libs/libdrm
 		  x11-libs/libICE )
 	xcb? 	( >=x11-libs/libX11-1.4 )
-	llvm? 	( sys-devel/llvm
-		  multilib? ( app-emulation/emul-linux-x86-baselibs ) )
+	llvm? 	( sys-devel/llvm )
 	motif? 	( x11-libs/openmotif )
 	s3tc? 	( media-libs/libtxc-dxtn )
 	${LIBDRM_DEPSTRING}[video_cards_nouveau?,video_cards_vmware?]"
@@ -231,50 +230,9 @@ pkg_setup() {
 src_unpack() {
 	[[ $PV = 9999* ]] && git_src_unpack || base_src_unpack
 	cd "${S}"
-
-	if use multilib; then
-		cd "${WORKDIR}"
-		mkdir 32
-		mv "${MY_P}" 32/ || die
-		cd "${WORKDIR}"
-		[[ $PV = 9999* ]] && EGIT_OFFLINE=1 git_src_unpack || base_src_unpack
-	fi
 }
 
 src_prepare() {
-	if use multilib; then
-		cd "${WORKDIR}"/32/${MY_P} || die
-		# apply patches
-		if [[ ${PV} != 9999* && -n ${SRC_PATCHES} ]]; then
-			EPATCH_FORCE="yes" \
-			EPATCH_SOURCE="${WORKDIR}/patches" \
-			EPATCH_SUFFIX="patch" \
-			epatch
-		fi
-		# FreeBSD 6.* doesn't have posix_memalign().
-		if [[ ${CHOST} == *-freebsd6.* ]]; then
-			sed -i \
-				-e "s/-DHAVE_POSIX_MEMALIGN//" \
-				configure.ac || die
-		fi
-
-		# In order for mesa to complete it's build process we need to use a tool
-		# that it compiles. When we cross compile this clearly does not work
-		# so we require mesa to be built on the host system first. -solar
-		if tc-is-cross-compiler; then
-			sed -i -e "s#^GLSL_CL = .*\$#GLSL_CL = glsl_compiler#g" \
-				"${WORKDIR}/32/${MY_P}"/src/mesa/shader/slang/library/Makefile || die
-		fi
-
-		[[ $PV = 9999* ]] && git_src_prepare
-		base_src_prepare
-		eautoreconf
-
-		# remove unnecessary headers. We preffer to use system ones
-		remove_headers "${WORKDIR}/32/${MY_P}" || die "Removing glew includes failed."
-		cd "${S}"
-	fi
-
 	# apply patches
 	if [[ ${PV} != 9999* && -n ${SRC_PATCHES} ]]; then
 		EPATCH_FORCE="yes" \
@@ -440,17 +398,6 @@ src_configure() {
 		$(use_enable glu)
 		$(use_enable glut)"
 
-	if use multilib; then
-		multilib_toolchain_setup x86
-		cd "${WORKDIR}/32/${MY_P}"
-		econf 	--enable-32-bit \
-			--disable-64-bit \
-			${myconf}
-		multilib_toolchain_setup amd64
-		myconf+=" --enable-64-bit --disable-32-bit"
-		cd "${S}"
-	fi
-
 	if use egl; then
 		myconf+=" --with-egl-platforms="
 		use X 			&& myconf+=",x11"
@@ -470,29 +417,11 @@ src_configure() {
 }
 
 src_compile() {
-	if use multilib; then
-		multilib_toolchain_setup x86
-		cd "${WORKDIR}/32/${MY_P}"
-		emake
-		multilib_toolchain_setup amd64
-	fi
-
 	cd "${S}"
 	emake
 }
 
 src_install() {
-	if use multilib; then
-		cd "${WORKDIR}/32/${MY_P}"
-		multilib_toolchain_setup x86
-		emake \
-			DESTDIR="${D}" \
-			install
-		dynamic_libgl_install
-		multilib_toolchain_setup amd64
-		cd "${S}"
-	fi
-
 	base_src_install
 	dynamic_libgl_install
 
