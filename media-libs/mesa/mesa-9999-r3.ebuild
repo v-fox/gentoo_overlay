@@ -78,7 +78,8 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x11-libs/libdrm
 		  x11-libs/libICE )
 	xcb? 	( >=x11-libs/libX11-1.4 )
-	llvm? 	( sys-devel/llvm )
+	llvm? 	( sys-devel/llvm
+		  multilib? ( app-emulation/emul-linux-x86-baselibs ) )
 	motif? 	( x11-libs/openmotif )
 	s3tc? 	( media-libs/libtxc-dxtn )
 	${LIBDRM_DEPSTRING}[video_cards_nouveau?,video_cards_vmware?]"
@@ -426,25 +427,25 @@ src_configure() {
 		fi
 	fi
 
+	myconf+=" $(use_with X x)
+		$(use_enable debug)
+		$(use_enable selinux)
+		$(use_enable static)
+		$(use_enable nptl glx-tls)
+		$(use_enable xcb)
+		$(use_enable motif glw)
+		$(use_enable motif)
+		$(use_enable !pic asm)
+		$(use_enable egl)
+		$(use_enable glu)
+		$(use_enable glut)"
+
 	if use multilib; then
 		multilib_toolchain_setup x86
 		cd "${WORKDIR}/32/${MY_P}"
 		econf 	--enable-32-bit \
 			--disable-64-bit \
-			$(use_with X x) \
-			$(use_enable debug) \
-			$(use_enable selinux) \
-			$(use_enable static) \
-			$(use_enable nptl glx-tls) \
-			$(use_enable xcb) \
-			$(use_enable motif glw) \
-			$(use_enable motif) \
-			$(use_enable !pic asm) \
-			$(use_enable egl) \
-			$(use_enable glu) \
-			$(use_enable glut) \
-			${myconf} \
-			--disable-gallium-llvm
+			${myconf}
 		multilib_toolchain_setup amd64
 		myconf+=" --enable-64-bit --disable-32-bit"
 		cd "${S}"
@@ -465,19 +466,7 @@ src_configure() {
 #			  $(use_enable X egl-dri2-x11)"
 #	fi
 
-	econf $(use_with X x) \
-	      $(use_enable debug) \
-	      $(use_enable selinux) \
-	      $(use_enable static) \
-	      $(use_enable nptl glx-tls) \
-	      $(use_enable xcb) \
-	      $(use_enable motif glw) \
-	      $(use_enable motif) \
-	      $(use_enable !pic asm) \
-	      $(use_enable egl) \
-	      $(use_enable glu) \
-	      $(use_enable glut) \
-	      ${myconf}
+	econf ${myconf}
 }
 
 src_compile() {
