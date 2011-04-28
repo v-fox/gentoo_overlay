@@ -445,7 +445,12 @@ src_configure() {
 		cd "${WORKDIR}/32/${MY_P}"
 		econf 	--enable-32-bit \
 			--disable-64-bit \
+<<<<<<< HEAD
 			${myconf}
+=======
+			${myconf} \
+			--disable-gallium-llvm
+>>>>>>> 23061f0f1f74df6566db4f8161b240769ad7fe76
 		multilib_toolchain_setup amd64
 		myconf+=" --enable-64-bit --disable-32-bit"
 		cd "${S}"
