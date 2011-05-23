@@ -1,21 +1,20 @@
 # Copyright 1999-2011 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/sys-boot/grub/grub-1.98.ebuild,v 1.7 2011/02/13 07:41:16 vapier Exp $
+# $Header: /var/cvsroot/gentoo-x86/sys-boot/grub/grub-1.99_rc1.ebuild,v 1.3 2011/04/10 14:34:42 ulm Exp $
 
 # XXX: need to implement a grub.conf migration in pkg_postinst before we ~arch
 
 inherit mount-boot eutils flag-o-matic toolchain-funcs
 
 if [[ ${PV} == "9999" ]] ; then
-	EBZR_REPO_URI="http://bzr.savannah.gnu.org/r/grub/trunk/grub"
+	EBZR_REPO_URI="http://bzr.savannah.gnu.org/r/grub/trunk/grub/"
 	inherit autotools bzr
 	SRC_URI=""
 else
-	MY_PV="${PV/_/~}"
-	MY_P="${PN}-${MY_PV}"
-	SRC_URI="ftp://alpha.gnu.org/gnu/${PN}/${MY_P}.tar.gz
+	MY_P=${P/_/\~}
+	SRC_URI="  http://ftp.gnu.org/gnu/${PN}/${MY_P}.tar.gz
 		mirror://gentoo/${MY_P}.tar.gz"
-	S="${WORKDIR}/${MY_P}"
+	S=${WORKDIR}/${MY_P}
 fi
 
 DESCRIPTION="GNU GRUB 2 boot loader"
@@ -28,13 +27,14 @@ IUSE="custom-cflags debug truetype multislot static"
 
 RDEPEND=">=sys-libs/ncurses-5.2-r5
 	dev-libs/lzo
-	truetype? ( media-libs/freetype media-fonts/unifont )"
+	truetype? ( media-libs/freetype >=media-fonts/unifont-5 )"
 DEPEND="${RDEPEND}
-	dev-lang/ruby"
-PROVIDE="virtual/bootloader"
+	>=sys-devel/autogen-5.10
+	>=dev-lang/python-2.5.2"
+[[ ${PV} == "9999" ]] && DEPEND+=" sys-apps/help2man"
 
 export STRIP_MASK="*/grub/*/*.mod"
-QA_EXECSTACK="sbin/grub-probe sbin/grub-setup sbin/grub-mkdevicemap bin/grub-script-check bin/grub-fstest $(get_libdir)/${PN}/i386-pc/setjmp.mod $(get_libdir)/${PN}/i386-pc/kernel.img"
+QA_EXECSTACK="sbin/grub-probe sbin/grub-setup sbin/grub-mkdevicemap bin/grub-script-check bin/grub-fstest"
 
 src_unpack() {
 	if [[ ${PV} == "9999" ]] ; then
@@ -43,16 +43,12 @@ src_unpack() {
 		unpack ${A}
 	fi
 	cd "${S}"
-	epatch "${FILESDIR}"/${PN}-1.99-genkernel.patch #256335
 	epatch_user
 
 	# autogen.sh does more than just run autotools
 	# need to eautomake due to weirdness #296013
 	if [[ ${PV} == "9999" ]] ; then
-		sed -i \
-			-e '/^\(auto\|ac\)/s:^:e:' \
-			-e "s:^eautomake:`which automake`:" \
-			autogen.sh
+		sed -i -e '/^autoreconf/s:^:e:' autogen.sh || die
 		(. ./autogen.sh) || die
 	fi
 }
@@ -69,6 +65,7 @@ src_compile() {
 		--disable-efiemu \
 		$(use_enable truetype grub-mkfont) \
 		$(use_enable debug mm-debug) \
+		$(use_enable debug grub-emu) \
 		$(use_enable debug grub-emu-usb) \
 		$(use_enable debug grub-fstest)
 	emake -j1 || die "making regular stuff"
