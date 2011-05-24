@@ -9,9 +9,11 @@ inherit mount-boot eutils flag-o-matic toolchain-funcs
 if [[ ${PV} == "9999" ]] ; then
 	EBZR_REPO_URI="http://bzr.savannah.gnu.org/r/grub/trunk/grub/"
 	inherit autotools bzr
+	KEYWORDS=""
 	SRC_URI=""
 else
 	MY_P=${P/_/\~}
+	KEYWORDS="~x86 ~amd64"
 	SRC_URI="  http://ftp.gnu.org/gnu/${PN}/${MY_P}.tar.gz
 		mirror://gentoo/${MY_P}.tar.gz"
 	S=${WORKDIR}/${MY_P}
@@ -22,7 +24,6 @@ HOMEPAGE="http://www.gnu.org/software/grub/"
 
 LICENSE="GPL-3"
 use multislot && SLOT="2" || SLOT="0"
-KEYWORDS=""
 IUSE="custom-cflags debug truetype multislot static"
 
 RDEPEND=">=sys-libs/ncurses-5.2-r5
