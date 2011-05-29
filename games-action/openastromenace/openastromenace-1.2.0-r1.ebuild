@@ -25,7 +25,7 @@ RDEPEND="virtual/opengl
 	media-libs/freealut
 	media-libs/libogg
 	media-libs/libvorbis
-	media-libs/jpeg"
+	virtual/jpeg"
 DEPEND="${RDEPEND}
 	dev-util/cmake"
 

@@ -45,7 +45,7 @@ DEPEND="opengl? ( ${UIDEPEND} )
 	!opengl? ( sdl? ( ${UIDEPEND} ) )
 	alsa? ( media-libs/alsa-lib )
 	media-libs/openal
-	media-libs/jpeg
+	virtual/jpeg
 	media-libs/libogg
 	media-libs/libpng
 	media-libs/libvorbis

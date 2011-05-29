@@ -17,7 +17,7 @@ IUSE="debug nls"
 
 RDEPEND="dev-games/physfs
 	dev-libs/popt
-	media-libs/jpeg
+	virtual/jpeg
 	media-libs/libogg
 	media-libs/libpng
 	media-libs/libsdl

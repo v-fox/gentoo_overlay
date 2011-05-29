@@ -15,7 +15,7 @@ SLOT="0"
 KEYWORDS="~alpha ~amd64 ~arm ~hppa ~ia64 ~mips ~ppc ~ppc64 ~s390 ~sh ~sparc ~x86 ~x86-fbsd"
 IUSE="jbig jpeg jpeg2k png rle svga tiff X xml zlib"
 
-RDEPEND="jpeg? ( >=media-libs/jpeg-7 )
+RDEPEND="jpeg? ( >=virtual/jpeg-7 )
 	jpeg2k? ( media-libs/jasper )
 	tiff? ( >=media-libs/tiff-3.5.5 )
 	png? ( >=media-libs/libpng-1.2.1 )

@@ -20,7 +20,7 @@ IUSE="debug fbcon fusion gif jpeg mmx png sdl sse sysfs truetype v4l v4l2 X zlib
 RDEPEND="sdl? ( media-libs/libsdl )
 	gif? ( media-libs/giflib )
 	png? ( media-libs/libpng )
-	jpeg? ( media-libs/jpeg )
+	jpeg? ( virtual/jpeg )
 	sysfs? ( sys-fs/sysfsutils )
 	zlib? ( sys-libs/zlib )
 	truetype? ( >=media-libs/freetype-2.0.1 )

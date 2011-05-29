@@ -23,7 +23,7 @@ RDEPEND=">=media-video/mplayer-0.90-r2
 		>=x11-libs/gtk+-2.18.0
 		media-libs/libsdl
 		>=media-video/ffmpeg-0.5
-		>=media-libs/jpeg-6b-r9
+		>=virtual/jpeg-6b-r9
 		>=media-sound/sox-14.3.0
 		virtual/cdrtools
 		jack? ( media-sound/jack-audio-connection-kit )
