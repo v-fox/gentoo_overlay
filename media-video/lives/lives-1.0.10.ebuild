@@ -19,7 +19,7 @@ DEPEND=">=media-video/mplayer-0.90-r2
 		>=x11-libs/gtk+-2.2.1
 		media-libs/libsdl
 		>=media-video/ffmpeg-0.4.8
-		>=media-libs/jpeg-6b-r3
+		>=virtual/jpeg-6b-r3
 		>=media-sound/sox-12.17.3-r3
 		virtual/cdrtools
 		theora? ( media-libs/libtheora )

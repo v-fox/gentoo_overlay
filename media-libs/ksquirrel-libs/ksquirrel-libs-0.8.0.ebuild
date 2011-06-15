@@ -28,10 +28,10 @@ IUSE="djvu camera jng jpeg jpeg2k kdeenablefinal mng png svg tiff truetype wmf"
 DEPEND="<=kde-base/kdelibs-4
 	djvu? ( app-text/djvu )
 	jng? (
-		media-libs/jpeg
+		virtual/jpeg
 		media-libs/libmng
 		)
-	jpeg? ( media-libs/jpeg )
+	jpeg? ( virtual/jpeg )
 	jpeg2k? ( media-libs/jasper )
 	mng? ( media-libs/libmng )
 	png? ( media-libs/libpng )

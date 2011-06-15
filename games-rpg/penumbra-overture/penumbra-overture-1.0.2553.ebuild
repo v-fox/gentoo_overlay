@@ -39,7 +39,7 @@ RDEPEND="dev-libs/libxml2
 
 # Provided in lib directory
 #	media-libs/freealut
-#	media-libs/jpeg
+#	virtual/jpeg
 #	media-libs/libogg
 #	media-libs/openal
 #	media-libs/libpng

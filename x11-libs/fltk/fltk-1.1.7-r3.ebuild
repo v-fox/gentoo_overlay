@@ -29,7 +29,7 @@ DEPEND="
 	x11-proto/xextproto
 	!noxft? ( virtual/xft )
 	media-libs/libpng
-	media-libs/jpeg
+	virtual/jpeg
 	opengl? ( virtual/opengl )"
 
 src_unpack() {

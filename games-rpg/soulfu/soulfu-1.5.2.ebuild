@@ -15,7 +15,7 @@ IUSE=""
 
 RDEPEND="media-libs/libsdl
 	media-libs/sdl-net
-	media-libs/jpeg
+	virtual/jpeg
 	media-libs/libvorbis
 	virtual/opengl"
 
