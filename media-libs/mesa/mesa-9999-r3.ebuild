@@ -345,13 +345,9 @@ src_configure() {
 		elog "    Radeon: Newest implementation of r{300-500} and r{600-800} drivers"
 		elog "    Svga: VMWare Virtual GPU driver"
 		# state trackers
-		myconf+=" --enable-gallium-swrast --with-state-trackers="
-		use opengl 	&& myconf+=",glx"
-		use egl 	&& myconf+=",egl"
-		use direct3d 	&& myconf+=",d3d1x"
-		use dri 	&& myconf+=",dri"
-		use openvg 	&& myconf+=",vega"
-		use ddx 	&& myconf+=",xorg"
+		myconf+=" --enable-gallium-swrast"
+		use direct3d 	&& myconf+=" $(use_enable d3d1x)"
+		use ddx 	&& myconf+=" $(use_enable xorg)"
 
 		# drivers
 		local gallium_i915 gallium_i965 gallium_r300 gallium_r600
