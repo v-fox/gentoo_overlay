@@ -364,16 +364,17 @@ src_configure() {
 			gallium_r600="1"
 		fi
 
-		myconf+=" $(use_enable llvm gallium-llvm)
-			  $(use_enable video_cards_vmware gallium-svga)
-			  $(use_enable video_cards_nouveau gallium-nouveau)"
+		local GALLIUM_DRIVERS=swrast
+		use llvm 		&& GALLIUM_DRIVERS+=",llvm"
+		use video_cards_vmware 	&& GALLIUM_DRIVERS+=",svga"
+		use video_cards_nouveau && GALLIUM_DRIVERS+=",nouveau"
 		for i in i915 i965 r300 r600; do
 			local current="gallium_$i"
 			eval current="\$$current"
 			[ ! -z "$current" ] && \
-				myconf+=" --enable-gallium-$i" || \
-				myconf+=" --disable-gallium-$i"
+				GALLIUM_DRIVERS+=",${i}"
 		done
+		myconf+=" --with-gallium-drivers=${GALLIUM_DRIVERS}"
 	else
 		if use video_cards_nouveau || use video_cards_vmware; then
 			elog "SVGA/wmware, LLVM and nouveau drivers are available only via gallium interface."
