@@ -268,7 +268,7 @@ src_configure() {
 		      $(use_enable openvg)"
 
 	# floating point textures
-	myconf+="$(use_enable texture-float)"
+	myconf+=" $(use_enable texture-float)"
 
 	# support of OpenGL for Embedded Systems
 	if use gles; then
@@ -333,8 +333,6 @@ src_configure() {
 	fi
 
 	# configure gallium support
-	myconf+=" $(use_enable gallium)
-		$(use_enable egl gallium-egl)"
 	if use gallium; then
 		elog "You have enabled gallium infrastructure."
 		elog "This infrastructure currently support these drivers:"
@@ -344,6 +342,7 @@ src_configure() {
 		elog "    Nouveau: Support for nVidia NV30 and later cards"
 		elog "    Radeon: Newest implementation of r{300-500} and r{600-800} drivers"
 		elog "    Svga: VMWare Virtual GPU driver"
+		myconf+=" $(use_enable egl gallium-egl)"
 		# state trackers
 		use direct3d 	&& myconf+=" $(use_enable d3d1x)"
 		use ddx 	&& myconf+=" $(use_enable xorg)"
