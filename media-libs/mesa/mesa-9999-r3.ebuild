@@ -268,7 +268,7 @@ src_configure() {
 		      $(use_enable openvg)"
 
 	# floating point textures
-	myconf="$(use_enable texture-float)"
+	myconf+="$(use_enable texture-float)"
 
 	# support of OpenGL for Embedded Systems
 	if use gles; then
@@ -345,7 +345,6 @@ src_configure() {
 		elog "    Radeon: Newest implementation of r{300-500} and r{600-800} drivers"
 		elog "    Svga: VMWare Virtual GPU driver"
 		# state trackers
-		myconf+=" --enable-gallium-swrast"
 		use direct3d 	&& myconf+=" $(use_enable d3d1x)"
 		use ddx 	&& myconf+=" $(use_enable xorg)"
 
@@ -364,8 +363,9 @@ src_configure() {
 			gallium_r600="1"
 		fi
 
+		myconf+=" $(use_enable llvm gallium-llvm)"
+
 		local GALLIUM_DRIVERS=swrast
-		use llvm 		&& GALLIUM_DRIVERS+=",llvm"
 		use video_cards_vmware 	&& GALLIUM_DRIVERS+=",svga"
 		use video_cards_nouveau && GALLIUM_DRIVERS+=",nouveau"
 		for i in i915 i965 r300 r600; do
