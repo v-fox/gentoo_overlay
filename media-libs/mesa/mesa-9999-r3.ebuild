@@ -379,6 +379,8 @@ src_configure() {
 			elog "SVGA/wmware, LLVM and nouveau drivers are available only via gallium interface."
 			elog "Enable gallium useflag if you want to use them."
 		fi
+
+		myconf+=" --without-gallium-drivers"
 	fi
 
 	myconf+=" $(use_with X x)
