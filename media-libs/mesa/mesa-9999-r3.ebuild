@@ -265,10 +265,8 @@ src_prepare() {
 
 src_configure() {
 	local myconf="$(use_enable opengl)
+		      $(use_enable egl)
 		      $(use_enable openvg)"
-
-	# floating point textures
-	myconf+=" $(use_enable texture-float)"
 
 	# support of OpenGL for Embedded Systems
 	if use gles; then
@@ -277,11 +275,21 @@ src_configure() {
 			$(use_enable gles2)"
 	fi
 
-	if use classic; then
-		local DRIVER="osmesa"
-		use X 			&& DRIVER="xlib"
-		use dri 		&& DRIVER="dri"
-		myconf+=" --with-driver=${DRIVER}"
+	# floating point textures
+	myconf+=" $(use_enable texture-float)"
+
+	local 	DRIVER="osmesa"
+	use X 	&& DRIVER="xlib"
+	use dri && DRIVER="dri"
+	myconf+=" --with-driver=${DRIVER}"
+
+	if use dri; then
+		myconf+=" $(use_enable shared shared-dricore)"
+	fi
+
+	if use classic && use opengl; then
+		# build & use osmesa even with GL
+		use osmesa && myconf+=" --enable-gl-osmesa"
 	fi
 
 	if use classic && use dri; then
@@ -319,17 +327,8 @@ src_configure() {
 
 		# Set drivers to everything on which we ran driver_enable()
 		use dri && myconf+=" --with-dri-drivers=${DRI_DRIVERS}"
-
-		if [[ $DRIVER != osmesa ]] && use classic; then
-			# build & use osmesa even with GL
-			use osmesa && myconf+=" --enable-gl-osmesa"
-		fi
 	else
 		use dri && myconf+=" --with-dri-drivers="
-	fi
-
-	if use dri; then
-		myconf+=" $(use_enable shared shared-dricore)"
 	fi
 
 	# configure gallium support
@@ -342,8 +341,15 @@ src_configure() {
 		elog "    Nouveau: Support for nVidia NV30 and later cards"
 		elog "    Radeon: Newest implementation of r{300-500} and r{600-800} drivers"
 		elog "    Svga: VMWare Virtual GPU driver"
-		myconf+=" $(use_enable egl gallium-egl)"
-		# state trackers
+
+		# "OpenGL can be supported via both egl_dri2 and egl_gallium EGL drivers.
+		# The former is generally preferred for various reasons.
+		# egl_gallium supports OpenVG and some EGL extensions not supported by egl_dri2." (c) Chia-I Wu
+		if use openvg; then
+			myconf+=" $(use_enable egl gallium-egl)"
+		fi
+
+		# additional state trackers
 		use direct3d 	&& myconf+=" $(use_enable d3d1x)"
 		use ddx 	&& myconf+=" $(use_enable xorg)"
 
@@ -379,8 +385,8 @@ src_configure() {
 			elog "SVGA/wmware, LLVM and nouveau drivers are available only via gallium interface."
 			elog "Enable gallium useflag if you want to use them."
 		fi
-
-		myconf+=" --without-gallium-drivers"
+		# disable gallium
+		myconf+=" --with-gallium-drivers="
 	fi
 
 	myconf+=" $(use_with X x)
@@ -392,7 +398,6 @@ src_configure() {
 		$(use_enable motif glw)
 		$(use_enable motif)
 		$(use_enable !pic asm)
-		$(use_enable egl)
 		$(use_enable glu)
 		$(use_enable glut)"
 
@@ -404,12 +409,6 @@ src_configure() {
 		use direct3d 		&& myconf+=",gdi"
 		use video_cards_fbdev 	&& myconf+=",fbdev"
 	fi
-
-# wait for it to go upstream...
-#	if use dri2 && use egl; then
-#		myconf+=" $(use_enable drm egl-dri2-drm)
-#			  $(use_enable X egl-dri2-x11)"
-#	fi
 
 	econf ${myconf}
 }
