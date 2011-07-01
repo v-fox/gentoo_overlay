@@ -183,6 +183,11 @@ pkg_setup() {
 		if use dri2 && $(! use drm && ! use X); then
 			die "dri2 needs drm or X support or both enabled"
 		fi
+
+		if ! use dri2 && ! use gallium; then
+			eerror "egl need its provider from dri2 or gallium"
+			die "both dri2 and gallium providers for egl are disabled"
+		fi
 	fi
 
 	if use opengl && ! use classic && ! use gallium; then
@@ -278,10 +283,20 @@ src_configure() {
 	# floating point textures
 	myconf+=" $(use_enable texture-float)"
 
-	local 	DRIVER="osmesa"
-	use X 	&& DRIVER="xlib"
-	use dri && DRIVER="dri"
-	myconf+=" --with-driver=${DRIVER}"
+	myconf+=" $(use_enable osmesa)"
+
+	if use X; then
+		myconf+=" --enable-glx"
+		if use dri || use dri2; then
+			myconf+=" --enable-dri
+				  --disable-xlib-glx"
+		else
+			myconf+=" --disable-dri 
+				  --enable-xlib-glx"
+		fi
+	else
+		myconf+=" --disable-glx"
+	fi
 
 	if use dri; then
 		myconf+=" $(use_enable shared shared-dricore)"
