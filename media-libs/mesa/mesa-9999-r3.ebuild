@@ -271,13 +271,14 @@ src_prepare() {
 src_configure() {
 	local myconf="$(use_enable opengl)
 		      $(use_enable egl)
-		      $(use_enable openvg)"
+		      $(use_enable openvg)
+		      --enable-shared-glapi
+		      --enable-gbm"
 
 	# support of OpenGL for Embedded Systems
 	if use gles; then
-		myconf+=" --enable-shared-glapi
-			$(use_enable gles1)
-			$(use_enable gles2)"
+		myconf+=" $(use_enable gles1)
+			  $(use_enable gles2)"
 	fi
 
 	# floating point textures
@@ -394,7 +395,7 @@ src_configure() {
 			[ ! -z "$current" ] && \
 				GALLIUM_DRIVERS+=",${i}"
 		done
-		myconf+=" --with-gallium-drivers=${GALLIUM_DRIVERS}"
+		myconf+=" --with-gallium-drivers=${GALLIUM_DRIVERS} --enable-gallium-gbm"
 	else
 		if use video_cards_nouveau || use video_cards_vmware; then
 			elog "SVGA/wmware, LLVM and nouveau drivers are available only via gallium interface."
