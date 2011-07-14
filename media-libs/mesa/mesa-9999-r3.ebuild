@@ -47,7 +47,7 @@ for card in ${VIDEO_CARDS}; do
 done
 
 IUSE="${IUSE_VIDEO_CARDS}
-	debug ddx ddx-xa doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux shared static wayland X kernel_FreeBSD
+	debug ddx ddx-xa doc direct3d gles gles1 gles2 llvm openvg osmesa pic motif selinux shared static wayland X kernel_FreeBSD
 	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb +patented +texture-float +s3tc +xvmc +vdpau +va"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
@@ -55,7 +55,6 @@ LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
 # keep blocks in rdepend for binpkg
 RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 	dev-libs/expat
-	glut? ( !media-libs/freeglut )
 	drm? 	( >=sys-fs/udev-150 )
 	direct3d? ( app-emulation/wine )
 	wayland? ( x11-base/wayland )
@@ -140,7 +139,7 @@ dynamic_libgl_install() {
 
 remove_headers() {
 	local uheaders="glew glxew wglew"
-	use glut || uheaders+=" glut glutf90"
+	uheaders+=" glut glutf90"
 
 	ebegin "removing unnecessary headers from $1"
 	for i in ${uheaders}; do
@@ -424,8 +423,7 @@ src_configure() {
 		$(use_enable motif glw)
 		$(use_enable motif)
 		$(use_enable !pic asm)
-		$(use_enable glu)
-		$(use_enable glut)"
+		$(use_enable glu)"
 
 	if use egl; then
 		myconf+=" --with-egl-platforms="
