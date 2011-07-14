@@ -309,7 +309,9 @@ src_configure() {
 
 	if use classic && use dri; then
 		# Configurable DRI drivers
-		dri_driver_enable swrast
+		if ! use gallium; then 
+			dri_driver_enable swrast
+		fi
 
 		# Intel code
 		dri_driver_enable video_cards_i810 i810
