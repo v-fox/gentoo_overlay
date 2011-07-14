@@ -47,8 +47,8 @@ for card in ${VIDEO_CARDS}; do
 done
 
 IUSE="${IUSE_VIDEO_CARDS}
-	debug ddx ddx-xa doc direct3d gles gles1 gles2 llvm openvg osmesa pic motif selinux shared static wayland X kernel_FreeBSD
-	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb +patented +texture-float +s3tc +xvmc +vdpau +va"
+	debug ddx ddx-xa doc direct3d gles gles1 gles2 llvm openvg osmesa pic motif selinux shared static wayland X va kernel_FreeBSD
+	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb +patented +texture-float +s3tc +xvmc +vdpau"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
 # keep correct libdrm and dri2proto dep
@@ -92,8 +92,8 @@ DEPEND="${RDEPEND}
 	sys-devel/bison
 	sys-devel/flex
 	x11-misc/makedepend
-	>=x11-proto/glproto-1.4.11
-	>=x11-proto/dri2proto-2.2
+	>=x11-proto/glproto-1.4.14
+	>=x11-proto/dri2proto-2.6
 	X? ( x11-proto/inputproto
 		x11-proto/xextproto
 		!hppa? ( x11-proto/xf86driproto )
@@ -101,7 +101,10 @@ DEPEND="${RDEPEND}
 		>=x11-proto/glproto-1.4.8 )
 	dev-libs/libxml2[python]
 	dev-util/pkgconfig
-	motif? ( x11-proto/printproto )"
+	motif? 	( x11-proto/printproto )
+	xvmc? 	( x11-libs/libXvMC )
+	vdpau? 	( x11-libs/libvdpau )
+	va? 	( x11-libs/libva )"
 
 S="${WORKDIR}/${MY_P}"
 
