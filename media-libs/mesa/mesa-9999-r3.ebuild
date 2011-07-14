@@ -47,8 +47,8 @@ for card in ${VIDEO_CARDS}; do
 done
 
 IUSE="${IUSE_VIDEO_CARDS}
-	debug ddx doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux shared static wayland X kernel_FreeBSD
-	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb +patented +texture-float +s3tc"
+	debug ddx ddx-xa doc direct3d gles gles1 gles2 glut llvm openvg osmesa pic motif selinux shared static wayland X kernel_FreeBSD
+	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb +patented +texture-float +s3tc +xvmc +vdpau +va"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
 # keep correct libdrm and dri2proto dep
@@ -365,9 +365,19 @@ src_configure() {
 			myconf+=" $(use_enable egl gallium-egl)"
 		fi
 
+		# what is 'g3dvl' if Gallium actually past its 0.4 version ?
+		# don't know but it's apparently needed for video decoding
+		if use xvmc || use vdpau || use va; then
+			myconf+=" --enable-gallium-g3dvl"
+		fi
+
 		# additional state trackers
 		use direct3d 	&& myconf+=" $(use_enable d3d1x)"
 		use ddx 	&& myconf+=" $(use_enable xorg)"
+		use ddx-xa 	&& myconf+=" $(use_enable xa)"
+		use xvmc 	&& myconf+=" $(use_enable xvmc)"
+		use vdpau 	&& myconf+=" $(use_enable vdpau)"
+		use va 		&& myconf+=" $(use_enable va)"
 
 		# drivers
 		local gallium_i915 gallium_i965 gallium_r300 gallium_r600
