@@ -50,7 +50,7 @@ IUSE="${IUSE_VIDEO_CARDS}
 	debug ddx ddx-xa doc direct3d gles gles1 gles2 llvm openvg osmesa pic motif selinux shared static wayland X va kernel_FreeBSD
 	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb +patented +texture-float +s3tc +xvmc +vdpau"
 
-LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.23"
+LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.26"
 # keep correct libdrm and dri2proto dep
 # keep blocks in rdepend for binpkg
 RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
@@ -74,7 +74,6 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x11-libs/libXt
 		  x11-libs/libXmu
 		  x11-libs/libXdamage
-		  x11-libs/libdrm
 		  x11-libs/libICE )
 	xcb? 	( >=x11-libs/libX11-1.4 )
 	llvm? 	( sys-devel/llvm )
