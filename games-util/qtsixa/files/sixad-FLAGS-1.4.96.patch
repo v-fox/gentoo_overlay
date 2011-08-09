@@ -1,0 +1,15 @@
+--- sixad/Makefile_old	2011-08-09 22:25:26.249661343 +0600
++++ sixad/Makefile	2011-08-09 22:25:42.182423641 +0600
+@@ -5,9 +5,9 @@
+ all: sixad_bins
+ 
+ sixad_bins:
+-	g++ -Wall -O2 sixad-bin.cpp bluetooth.cpp shared.cpp textfile.cpp -o bins/sixad-bin -lbluetooth
+-	g++ -Wall -O2 sixad-sixaxis.cpp sixaxis.cpp shared.cpp uinput.cpp textfile.cpp -o bins/sixad-sixaxis -lpthread
+-	g++ -Wall -O2 sixad-raw.cpp sixaxis.cpp shared.cpp uinput.cpp textfile.cpp -o bins/sixad-raw
++	g++ -Wall $(CXXFLAGS) $(LDFLAGS) sixad-bin.cpp bluetooth.cpp shared.cpp textfile.cpp -o bins/sixad-bin -lbluetooth
++	g++ -Wall $(CXXFLAGS) $(LDFLAGS) sixad-sixaxis.cpp sixaxis.cpp shared.cpp uinput.cpp textfile.cpp -o bins/sixad-sixaxis -lpthread
++	g++ -Wall $(CXXFLAGS) $(LDFLAGS) sixad-raw.cpp sixaxis.cpp shared.cpp uinput.cpp textfile.cpp -o bins/sixad-raw
+ 
+ clean:
+ 	rm -f *~ bins/*

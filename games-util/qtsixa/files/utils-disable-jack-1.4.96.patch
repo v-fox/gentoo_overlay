@@ -1,0 +1,28 @@
+--- utils/Makefile_old	2011-08-09 22:43:19.657181029 +0600
++++ utils/Makefile	2011-08-09 22:43:55.385587588 +0600
+@@ -6,7 +6,7 @@
+ 
+ tools:
+ 	gcc -Wall $(CXXFLAGS) $(LDFLAGS) hidraw-dump.c -o bins/hidraw-dump
+-	gcc -Wall $(CXXFLAGS) $(LDFLAGS) sixad-jack.c -o bins/sixad-jack -ljack -lm
++#	gcc -Wall $(CXXFLAGS) $(LDFLAGS) sixad-jack.c -o bins/sixad-jack -ljack -lm
+ 	gcc -Wall $(CXXFLAGS) $(LDFLAGS) sixpair.c -o bins/sixpair -lusb
+ 	gcc -Wall $(CXXFLAGS) $(LDFLAGS) sixpair_kbd.c -o bins/sixpair-kbd -lusb
+ 
+@@ -20,14 +20,14 @@
+ install:
+ 	install -d $(DESTDIR)/usr/bin/
+ 	install -d $(DESTDIR)/usr/sbin/
+-	install -m 655 bins/sixad-jack $(DESTDIR)/usr/bin/
++#	install -m 655 bins/sixad-jack $(DESTDIR)/usr/bin/
+ 	install -m 655 bins/sixpair $(DESTDIR)/usr/bin/
+ 	install -m 655 bins/sixpair-kbd $(DESTDIR)/usr/bin/
+ 	install -m 655 bins/hcid $(DESTDIR)/usr/sbin/
+ 	install -m 655 bins/hidraw-dump $(DESTDIR)/usr/sbin/
+ 
+ uninstall:
+-	rm -f $(DESTDIR)/usr/bin/sixad-jack
++#	rm -f $(DESTDIR)/usr/bin/sixad-jack
+ 	rm -f $(DESTDIR)/usr/bin/sixpair
+ 	rm -f $(DESTDIR)/usr/bin/sixpair-kbd
+ 	rm -f $(DESTDIR)/usr/sbin/hcid

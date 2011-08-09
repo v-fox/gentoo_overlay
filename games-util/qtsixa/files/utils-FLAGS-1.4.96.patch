@@ -1,0 +1,17 @@
+--- utils/Makefile_old	2011-08-09 22:41:51.533247844 +0600
++++ utils/Makefile	2011-08-09 22:42:42.286974602 +0600
+@@ -5,10 +5,10 @@
+ all: tools hcid_bin
+ 
+ tools:
+-	gcc -Wall -O2 hidraw-dump.c -o bins/hidraw-dump
+-	gcc -Wall -O2 sixad-jack.c -o bins/sixad-jack -ljack -lm
+-	gcc -Wall -O2 sixpair.c -o bins/sixpair -lusb
+-	gcc -Wall -O2 sixpair_kbd.c -o bins/sixpair-kbd -lusb
++	gcc -Wall $(CXXFLAGS) $(LDFLAGS) hidraw-dump.c -o bins/hidraw-dump
++	gcc -Wall $(CXXFLAGS) $(LDFLAGS) sixad-jack.c -o bins/sixad-jack -ljack -lm
++	gcc -Wall $(CXXFLAGS) $(LDFLAGS) sixpair.c -o bins/sixpair -lusb
++	gcc -Wall $(CXXFLAGS) $(LDFLAGS) sixpair_kbd.c -o bins/sixpair-kbd -lusb
+ 
+ hcid_bin:
+ 	make -C hcid
