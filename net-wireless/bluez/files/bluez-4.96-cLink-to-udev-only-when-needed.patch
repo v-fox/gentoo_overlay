@@ -1,0 +1,17 @@
+diff --git a/Makefile.am b/Makefile.am
+index dbe0170..219ca0f 100644
+--- a/Makefile.am
++++ b/Makefile.am
+@@ -288,7 +288,11 @@ src_bluetoothd_SOURCES = $(gdbus_sources) $(builtin_sources) \
+ 			src/event.h src/event.c \
+ 			src/oob.h src/oob.c src/eir.h src/eir.c
+ src_bluetoothd_LDADD = lib/libbluetooth.la @GLIB_LIBS@ @DBUS_LIBS@ \
+-							@CAPNG_LIBS@ @UDEV_LIBS@ -ldl -lrt
++							@CAPNG_LIBS@ -ldl -lrt
++if SIXAXISPLUGIN
++src_bluetoothd_LDADD += @UDEV_LIBS@
++endif
++
+ src_bluetoothd_LDFLAGS = -Wl,--export-dynamic \
+ 				-Wl,--version-script=$(srcdir)/src/bluetooth.ver
+ 
