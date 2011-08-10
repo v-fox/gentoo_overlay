@@ -1,0 +1,25 @@
+diff -ur linuxconsoletools-1.4.1/utils/Makefile linuxconsoletools-1.4.1-ldflags/utils/Makefile
+--- linuxconsoletools-1.4.1/utils/Makefile	2011-04-05 08:24:28.000000000 +0100
++++ linuxconsoletools-1.4.1-ldflags/utils/Makefile	2011-07-06 15:18:31.000000000 +0100
+@@ -40,10 +40,10 @@
+ 	$(RM) *.o *.swp $(PROGRAMS) *.orig *.rej map *~
+ 
+ ffcfstress: ffcfstress.c
+-	$(CC) -O2 -funsigned-char ffcfstress.c -lm -o ffcfstress
++	$(CC) $(CFLAGS) $(LDFLAGS) -funsigned-char ffcfstress.c -lm -o ffcfstress
+ 
+ ffmvforce.o: ffmvforce.c
+-	$(CC) -c $(CFLAGS) $(CPPFLAGS) $^ -o $@ `sdl-config --cflags`
++	$(CC) -c $(CFLAGS) $^ -o $@ `sdl-config --cflags`
+ 
+ ffmvforce: ffmvforce.o
+ 	$(CC) $^ -o $@ $(LDFLAGS) -g -lm `sdl-config --libs`
+@@ -53,7 +53,7 @@
+ jscal.o: jscal.c axbtnmap.h
+ 
+ jscal: jscal.o axbtnmap.o
+-	$(CC) $(CFLAGS) $(CPPFLAGS) $^ -lm -o $@
++	$(CC) $(CFLAGS) $(LDFLAGS) $^ -lm -o $@
+ 
+ jstest.o: jstest.c axbtnmap.h
+ 
