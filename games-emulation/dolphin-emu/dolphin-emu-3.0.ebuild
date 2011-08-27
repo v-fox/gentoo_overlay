@@ -3,51 +3,50 @@
 # $Header: $
 EAPI="3"
 
-inherit cmake-utils eutils flag-o-matic games subversion
+WX_GTK_VER="2.8"
+
+inherit cmake-utils eutils flag-o-matic games git pax-utils wxwidgets
 
 DESCRIPTION="Free. open source emulator for Nintendo GameCube and Wii"
 HOMEPAGE="http://www.dolphin-emu.com/"
 SRC_URI=""
-ESVN_REPO_URI="http://dolphin-emu.googlecode.com/svn/trunk/"
-ESVN_PROJECT="dolphin-emu-read-only"
+EGIT_REPO_URI="https://code.google.com/p/dolphin-emu/"
+EGIT_PROJECT="dolphin-emu"
+EGIT_COMMIT="${PV}"
 
 LICENSE="GPL-2"
 SLOT="0"
-KEYWORDS=""
-IUSE="alsa ao bluetooth doc encode +lzo openal opencl opengl portaudio pulseaudio +wxwidgets +xrandr"
+KEYWORDS="~x86 amd64 ~ppc ~ppc64"
+IUSE="alsa ao bluetooth doc encode +lzo openal opengl portaudio pulseaudio +wxwidgets +xrandr"
 RESTRICT=""
 
 RDEPEND=">=media-libs/glew-1.5
 	>=media-libs/libsdl-1.2[joystick]
 	sys-libs/readline
 	x11-libs/libXext
-	>=x11-libs/wxGTK-2.8
 	ao? ( media-libs/libao )
 	alsa? ( media-libs/alsa-lib )
 	bluetooth? ( net-wireless/bluez )
 	encode? ( media-video/ffmpeg[encode] )
 	lzo? ( dev-libs/lzo )
 	openal? ( media-libs/openal )
-	opencl? ( || ( media-libs/mesa[opencl]
-			x11-drivers/nvidia-drivers
-			x11-drivers/ati-drivers ) )
 	opengl? ( virtual/opengl )
 	portaudio? ( media-libs/portaudio )
 	pulseaudio? ( media-sound/pulseaudio )
-	xrandr? ( x11-libs/libXrandr )
-	virtual/jpeg
-	sys-libs/zlib
-	x11-libs/cairo
-	x11-libs/libXxf86vm"
+	wxwidgets? ( x11-libs/wxGTK:2.8 )
+	xrandr? ( x11-libs/libXrandr )"
 DEPEND="${RDEPEND}
 	dev-util/cmake
 	dev-util/pkgconfig
 	media-gfx/nvidia-cg-toolkit"
 
 src_configure() {
-	# Configure cmake
+	# filter problematic compiler flags
+	filter-flags -flto -fwhole-program
+	append-flags -fno-pie
+
 	mycmakeargs="
-		-DDOLPHIN_WC_REVISION=9999
+		-DDOLPHIN_WC_REVISION=${MY_PV}
 		-DCMAKE_INSTALL_PREFIX=${GAMES_PREFIX}
 		-Dprefix=${GAMES_PREFIX}
 		-Ddatadir=${GAMES_DATADIR}/${PN}
@@ -55,6 +54,10 @@ src_configure() {
 		$(cmake-utils_use !wxwidgets DISABLE_WX)
 		$(cmake-utils_use encode ENCODE_FRAMEDUMPS)"
 	cmake-utils_src_configure
+}
+
+src_compile() {
+	cmake-utils_src_make
 }
 
 src_install() {
@@ -82,6 +85,9 @@ src_install() {
 }
 
 pkg_postinst() {
+	# hardened fix
+	pax-mark -m "${EPREFIX}/usr/games/bin/${PN}"
+
 	echo
 	if ! use portaudio; then
 		ewarn "If you need to use your microphone for a game, rebuild with USE=portaudio"
