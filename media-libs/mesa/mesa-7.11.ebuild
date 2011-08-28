@@ -39,15 +39,15 @@ LICENSE="LGPL-2"
 SLOT="0"
 KEYWORDS=""
 
-INTEL_CARDS="i915 i965 intel"
+INTEL_CARDS="i810 i915 i965 intel"
 RADEON_CARDS="r100 r200 r300 r600 radeon"
-VIDEO_CARDS="${INTEL_CARDS} ${RADEON_CARDS} fbdev nouveau vmware"
+VIDEO_CARDS="${INTEL_CARDS} ${RADEON_CARDS} fbdev mach64 mga nouveau r128 savage sis vmware tdfx via"
 for card in ${VIDEO_CARDS}; do
 	IUSE_VIDEO_CARDS+=" video_cards_${card}"
 done
 
 IUSE="${IUSE_VIDEO_CARDS}
-	debug ddx ddx-xa doc direct3d gles gles1 gles2 llvm openvg osmesa pic selinux shared static wayland X va kernel_FreeBSD
+	debug ddx ddx-xa doc direct3d gles gles1 gles2 llvm openvg osmesa pic motif selinux shared static wayland X va kernel_FreeBSD
 	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb +patented +texture-float +s3tc +xvmc +vdpau"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.26"
@@ -77,6 +77,7 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x11-libs/libICE )
 	xcb? 	( >=x11-libs/libX11-1.4 )
 	llvm? 	( sys-devel/llvm )
+	motif? 	( x11-libs/openmotif )
 	s3tc? 	( media-libs/libtxc-dxtn )
 	${LIBDRM_DEPSTRING}[video_cards_nouveau?,video_cards_vmware?]"
 
@@ -99,6 +100,7 @@ DEPEND="${RDEPEND}
 		>=x11-proto/glproto-1.4.8 )
 	dev-libs/libxml2[python]
 	dev-util/pkgconfig
+	motif? 	( x11-proto/printproto )
 	xvmc? 	( x11-libs/libXvMC )
 	vdpau? 	( x11-libs/libvdpau )
 	va? 	( x11-libs/libva )"
@@ -314,16 +316,21 @@ src_configure() {
 		fi
 
 		# Intel code
+		dri_driver_enable video_cards_i810 i810
 		dri_driver_enable video_cards_i915 i915
 		dri_driver_enable video_cards_i965 i965
-		if ! use video_cards_i915 && ! use video_cards_i965; then
-			dri_driver_enable video_cards_intel i915 i965
+		if ! use video_cards_i810 && ! use video_cards_i915 && ! use video_cards_i965; then
+			dri_driver_enable video_cards_intel i810 i915 i965
 		fi
 
 		# Nouveau code
 		dri_driver_enable video_cards_nouveau nouveau
 
 		# ATI code
+		dri_driver_enable video_cards_mach64 mach64
+		dri_driver_enable video_cards_mga mga
+		dri_driver_enable video_cards_r128 r128
+
 		dri_driver_enable video_cards_r100 radeon
 		dri_driver_enable video_cards_r200 r200
 		dri_driver_enable video_cards_r300 r300
@@ -331,6 +338,11 @@ src_configure() {
 		if ! use video_cards_r100 && ! use video_cards_r200 && ! use video_cards_r300 && ! use video_cards_r600; then
 			dri_driver_enable video_cards_radeon radeon r200 r300 r600
 		fi
+
+		dri_driver_enable video_cards_savage savage
+		dri_driver_enable video_cards_sis sis
+		dri_driver_enable video_cards_tdfx tdfx
+		dri_driver_enable video_cards_via unichrome
 
 		# Set drivers to everything on which we ran driver_enable()
 		use dri && myconf+=" --with-dri-drivers=${DRI_DRIVERS}"
@@ -412,6 +424,8 @@ src_configure() {
 		$(use_enable static)
 		$(use_enable nptl glx-tls)
 		$(use_enable xcb)
+		$(use_enable motif glw)
+		$(use_enable motif)
 		$(use_enable !pic asm)
 		$(use_enable glu)"
 

@@ -12,7 +12,7 @@ SRC_URI="mirror://sourceforge/${PN}/${MY_P}.tar.bz2"
 
 LICENSE="GPL-2"
 SLOT="2"
-KEYWORDS="~x86"
+KEYWORDS="~x86 ~amd64"
 IUSE="debug docs linguas_he nls socks5 ssl xosd aosd jabber qt4 msn ncurses"
 
 RDEPEND=">=app-crypt/gpgme-1
@@ -44,6 +44,9 @@ src_prepare() {
 	done
 
 	sed -i -e "s/file(GLOB cmake_plugins.*$/set(cmake_plugins ${plugins})/" plugins/CMakeLists.txt
+
+	cd "${WORKDIR}"
+	epatch "${FILESDIR}/cmake-fix-for-licq-1.5.1.patch"
 }
 
 pkg_setup() {
