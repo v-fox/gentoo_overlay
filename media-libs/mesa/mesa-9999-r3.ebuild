@@ -48,7 +48,7 @@ done
 
 IUSE="${IUSE_VIDEO_CARDS}
 	debug ddx ddx-xa doc direct3d gles gles1 gles2 llvm openvg osmesa pic selinux shared static wayland X va kernel_FreeBSD
-	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +xcb +patented +texture-float +s3tc +xvmc +vdpau"
+	+classic +dri +dri2 +egl +gallium +glu +drm +nptl +opengl +patented +texture-float +s3tc +xvmc +vdpau"
 
 LIBDRM_DEPSTRING=">=x11-libs/libdrm-2.4.26"
 # keep correct libdrm and dri2proto dep
@@ -75,7 +75,6 @@ RDEPEND=">=app-admin/eselect-opengl-1.1.1-r2
 		  x11-libs/libXmu
 		  x11-libs/libXdamage
 		  x11-libs/libICE )
-	xcb? 	( >=x11-libs/libX11-1.4 )
 	llvm? 	( sys-devel/llvm )
 	s3tc? 	( media-libs/libtxc-dxtn )
 	${LIBDRM_DEPSTRING}[video_cards_nouveau?,video_cards_vmware?]"
@@ -261,7 +260,10 @@ src_prepare() {
 
 	[[ $PV = 9999* ]] && git_src_prepare
 	base_src_prepare
+	AM_OPTS="--add-missing"
 	eautoreconf
+	# stupid-ass autotool-eclass does not run automake for some reason
+	automake --add-missing
 
 	# remove unnecessary headers. We preffer to use system ones
 	remove_headers "${S}" || die "Removing glew includes failed."
@@ -411,7 +413,6 @@ src_configure() {
 		$(use_enable selinux)
 		$(use_enable static)
 		$(use_enable nptl glx-tls)
-		$(use_enable xcb)
 		$(use_enable !pic asm)
 		$(use_enable glu)"
 
