@@ -117,7 +117,7 @@ src_configure() {
 		--enable-sap \
 		--enable-time \
 		--enable-thermometer \
-		--enable-wii
+		--enable-wiimote
 }
 
 src_install() {
