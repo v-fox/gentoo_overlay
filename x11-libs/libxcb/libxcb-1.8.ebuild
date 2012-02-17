@@ -24,7 +24,8 @@ DEPEND="${RDEPEND}
 
 CONFIGURE_OPTIONS="$(use_enable doc build-docs)
 		$(use_enable selinux)
-		--enable-xinput"
+		--enable-xinput
+		--enable-xkb"
 
 pkg_postinst() {
 	x-modular_pkg_postinst
