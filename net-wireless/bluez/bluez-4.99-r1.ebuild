@@ -81,7 +81,7 @@ src_prepare() {
 	fi
 
 	# sixaxis/dualshock3 support
-	epatch "${FILESDIR}"/bluez-4.98-Add-sixaxis-cable-pairing-plugin.patch
+	epatch "${FILESDIR}/${P}"-Add-sixaxis-cable-pairing-plugin.patch
 	eautoreconf
 }
 
