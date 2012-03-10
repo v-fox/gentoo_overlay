@@ -86,7 +86,7 @@ src_compile() {
 src_install () {
 	if use multilib; then
 		insinto /usr/lib32
-		doins "${WORKDIR}/32/${P}"/lib/audio/libaudio.so*
+		doins "${WORKDIR}/32/${P}"/lib/audio/libaudio.so.?.?
 	fi
 
 	emake DESTDIR="${D}" install install.man || die "emake install failed"
