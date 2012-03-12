@@ -1,0 +1,133 @@
+diff -Naur liquidwar6-0.0.11beta.orig/configure.ac liquidwar6-0.0.11beta/configure.ac
+--- liquidwar6-0.0.11beta.orig/configure.ac	2011-10-21 20:03:30.000000000 +0200
++++ liquidwar6-0.0.11beta/configure.ac	2011-10-21 20:04:41.000000000 +0200
+@@ -44,7 +44,7 @@
+ AC_SUBST(LW6_MS_WINDOWS_VERSION)
+ 
+ dnl Headers, some are optional
+-AC_CHECK_HEADERS(arpa/inet.h ctype.h dirent.h errno.h execinfo.h expat.h fcntl.h GL/gl.h GL/glu.h iconv.h ifaddrs.h jpeglib.h langinfo.h libguile.h libintl.h libpng12/png.h libpng14/png.h lmcons.h locale.h ltdl.h math.h netdb.h netinet/in.h pthread.h readline/history.h readline/readline.h SDL/SDL.h SDL/SDL_image.h SDL/SDL_mixer.h SDL/SDL_ttf.h signal.h stdarg.h stdio.h stdlib.h string.h syslog.h sys/select.h sys/signal.h sys/socket.h sys/stat.h sys/time.h sys/types.h sys/utsname.h time.h unistd.h winbase.h windows.h winsock2.h)
++AC_CHECK_HEADERS(arpa/inet.h ctype.h dirent.h errno.h execinfo.h expat.h fcntl.h GL/gl.h GL/glu.h iconv.h ifaddrs.h jpeglib.h langinfo.h libguile.h libintl.h libpng12/png.h libpng14/png.h libpng15/png.h lmcons.h locale.h ltdl.h math.h netdb.h netinet/in.h pthread.h readline/history.h readline/readline.h SDL/SDL.h SDL/SDL_image.h SDL/SDL_mixer.h SDL/SDL_ttf.h signal.h stdarg.h stdio.h stdlib.h string.h syslog.h sys/select.h sys/signal.h sys/socket.h sys/stat.h sys/time.h sys/types.h sys/utsname.h time.h unistd.h winbase.h windows.h winsock2.h)
+ 
+ AM_MISSING_PROG(PERL, perl, ${missing_dir})
+ AM_MISSING_PROG(AWK, awk, ${missing_dir})
+@@ -290,22 +290,26 @@
+ 
+ AC_CHECK_HEADER(libpng12/png.h, HAVE_LIBPNG12_PNG_H=1)
+ AC_CHECK_HEADER(libpng14/png.h, HAVE_LIBPNG14_PNG_H=1)
+-if test x${HAVE_LIBPNG12_PNG_H} = x1 || test x${HAVE_LIBPNG14_PNG_H} = x1; then
++AC_CHECK_HEADER(libpng15/png.h, HAVE_LIBPNG15_PNG_H=1)
++if test x${HAVE_LIBPNG12_PNG_H} = x1 || test x${HAVE_LIBPNG14_PNG_H} = x1 || test x${HAVE_LIBPNG15_PNG_H} = x1; then
+    if test x${HAVE_LIBPNG12_PNG_H} = x1; then
+       LIBPNG_1X_H=libpng12/png.h
+    fi
+    if test x${HAVE_LIBPNG14_PNG_H} = x1; then
+       LIBPNG_1X_H=libpng14/png.h
+    fi
++   if test x${HAVE_LIBPNG15_PNG_H} = x1; then
++      LIBPNG_1X_H=libpng15/png.h
++   fi
+ else
+    AC_MSG_ERROR([
+-*** Liquid War 6 needs libpng 1.2 or libpng 1.4 (http://www.libpng.org/pub/png/libpng.html)
++*** Liquid War 6 needs libpng 1.2 or libpng 1.4 or libpng 1.5 (http://www.libpng.org/pub/png/libpng.html)
+ ])
+ fi
+ AC_SUBST(LIBPNG_1X_H)
+ 
+ AC_CHECK_LIB(png, png_sig_cmp, HAVE_LIBPNG=1, AC_MSG_ERROR([
+-*** Liquid War 6 needs libpng 1.2 or libpng 1.4 (http://www.libpng.org/pub/png/libpng.html)
++*** Liquid War 6 needs libpng 1.2 or libpng 1.4 or libpng 1.5 (http://www.libpng.org/pub/png/libpng.html)
+ ]))
+ 
+ AC_CHECK_HEADER(jpeglib.h, HAVE_JPEGLIB_H=1, AC_MSG_ERROR([
+diff -Naur liquidwar6-0.0.11beta.orig/src/lib/ldr/ldr-bw.c liquidwar6-0.0.11beta/src/lib/ldr/ldr-bw.c
+--- liquidwar6-0.0.11beta.orig/src/lib/ldr/ldr-bw.c	2011-10-21 20:32:47.000000000 +0200
++++ liquidwar6-0.0.11beta/src/lib/ldr/ldr-bw.c	2011-10-21 20:37:50.000000000 +0200
+@@ -59,6 +59,7 @@
+ 		{
+ 		  png_uint_32 width;
+ 		  png_uint_32 height;
++		  png_uint_32 rowbytes;
+ 		  int max_width;
+ 		  int max_height;
+ 		  int bit_depth;
+@@ -96,6 +97,8 @@
+ 		  png_get_IHDR (png_ptr, info_ptr, &width, &height,
+ 				&bit_depth, &color_type, NULL, NULL, NULL);
+ 
++		  rowbytes = png_get_rowbytes (png_ptr, info_ptr);
++
+ 		  step = ((color_type & PNG_COLOR_MASK_COLOR) ? 3 : 1) +
+ 		    ((color_type & PNG_COLOR_MASK_ALPHA) ? 1 : 0);
+ 
+@@ -124,14 +127,14 @@
+ 		      format_ok = 0;
+ 		    }
+ 
+-		  if (info_ptr->rowbytes != info_ptr->width * step ||
++		  if (rowbytes != width * step ||
+ 		      bit_depth > 8)
+ 		    {
+ 		      lw6sys_log (LW6SYS_LOG_WARNING,
+ 				  _x_
+ 				  ("can't load B&W PNG file \"%s\", memory footprint is inconsistent, color_type=%d, rowbytes=%d, width=%d, step=%d, bit_depth=%d"),
+ 				  png_file, color_type,
+-				  info_ptr->rowbytes, width, step, bit_depth);
++				  rowbytes, width, step, bit_depth);
+ 		      format_ok = 0;
+ 		    }
+ 
+@@ -147,7 +150,7 @@
+ 			    {
+ 			      buf[row] =
+ 				(unsigned char *)
+-				LW6SYS_MALLOC (info_ptr->rowbytes *
++				LW6SYS_MALLOC (rowbytes *
+ 					       sizeof (unsigned char));
+ 			      if (!buf[row])
+ 				{
+--- liquidwar6-0.0.11beta.orig/src/lib/ldr/ldr-rgba.c	2011-10-21 20:32:47.000000000 +0200
++++ liquidwar6-0.0.11beta/src/lib/ldr/ldr-rgba.c	2011-10-21 20:41:52.000000000 +0200
+@@ -65,6 +65,7 @@
+ 		{
+ 		  png_uint_32 width;
+ 		  png_uint_32 height;
++		  png_uint_32 rowbytes;
+ 		  int max_width;
+ 		  int max_height;
+ 		  int bit_depth;
+@@ -100,6 +101,8 @@
+ 		  png_get_IHDR (png_ptr, info_ptr, &width, &height,
+ 				&bit_depth, &color_type, NULL, NULL, NULL);
+ 
++		  rowbytes = png_get_rowbytes (png_ptr, info_ptr);
++
+ 		  if (color_type & PNG_COLOR_MASK_PALETTE)
+ 		    {
+ 		      lw6sys_log (LW6SYS_LOG_WARNING,
+@@ -125,14 +128,14 @@
+ 		      format_ok = 0;
+ 		    }
+ 
+-		  if (info_ptr->rowbytes != info_ptr->width * 4 ||
++		  if (rowbytes != width * 4 ||
+ 		      bit_depth > 8)
+ 		    {
+ 		      lw6sys_log (LW6SYS_LOG_WARNING,
+ 				  _x_
+ 				  ("can't load RGBA PNG file \"%s\", memory footprint is inconsistent, color_type=%d, rowbytes=%d, width=%d, step=%d, bit_depth=%d"),
+ 				  png_file, color_type,
+-				  info_ptr->rowbytes, width, 4, bit_depth);
++				  rowbytes, width, 4, bit_depth);
+ 		      format_ok = 0;
+ 		    }
+ 
+@@ -148,7 +151,7 @@
+ 			    {
+ 			      buf[row] =
+ 				(unsigned char *)
+-				LW6SYS_MALLOC (info_ptr->rowbytes *
++				LW6SYS_MALLOC (rowbytes *
+ 					       sizeof (unsigned char));
+ 			      if (!buf[row])
+ 				{
