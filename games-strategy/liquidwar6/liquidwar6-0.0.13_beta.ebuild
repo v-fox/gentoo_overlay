@@ -46,8 +46,6 @@ DEPEND="${RDEPEND}
 S=${WORKDIR}/${MY_P}
 
 src_prepare() {
-	# @see https://savannah.gnu.org/bugs/index.php?34614
-	epatch "${FILESDIR}"/${PN}-libpng-1.5.patch
 	eautoconf
 }
 
