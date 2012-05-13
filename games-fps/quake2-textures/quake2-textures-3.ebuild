@@ -2,9 +2,9 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: $
 
+EAPI="3"
 inherit games
 
-EAPI="3"
 JIMW="http://www-personal.umich.edu/~jimw/q2"
 HIRES="hi-res/B@Q2"
 DESCRIPTION="24-bit high-resolution textures for enhanced Quake 2 engines"

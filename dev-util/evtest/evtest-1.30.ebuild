@@ -2,9 +2,8 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: $
 
+EAPI="4"
 inherit autotools
-
-EAPI=3
 
 DESCRIPTION="Displays information about input devices and monitors generated
 events."
