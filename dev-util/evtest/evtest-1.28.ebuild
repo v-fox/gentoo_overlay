@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: $
 
-EAPI="4"
+EAPI="3"
 inherit autotools
 
 DESCRIPTION="Displays information about input devices and monitors generated
@@ -26,6 +26,10 @@ src_unpack() {
 	cd ${S}
 
 	eautoreconf
+}
+
+src_prepare() {
+	epatch "${FILESDIR}/force-feedback-info-1.28.patch"
 }
 
 src_install() {
