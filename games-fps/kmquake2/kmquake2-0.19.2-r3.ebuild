@@ -5,16 +5,14 @@ EAPI="3"
 inherit eutils toolchain-funcs flag-o-matic toolchain-funcs games
 
 MY_PN="quake2"
-FILE_STEM="KMQuake2-SDL-${PV}_src_unix"
-DATA_STEM="KMQuake2_data-0.19"
-SOURCE_LINK="https://downloader1j.disk.yandex.ru/disk/8443bf9e6951482d44b96d12f5687341/4faf61f7/MzQ2MC55YWRpc2s6MTIxMTQ2MjIuMjgwMjMyNzU4MzE4OTgyMzM0ODEyNDc1ODQ0MDk2OQ==?uid=0&filename=KMQuake2-SDL-0.19.2_src_unix.tar.bz2&content_type=application/x-bzip2&disposition=attachment"
-DATA_LINK="https://downloader4j.disk.yandex.ru/disk/e913c035bdbf32580e50bd960fb9e8aa/4faf62f8/MzE1NC55YWRpc2s6MTIxMTQ2MjIuMTg4MTIyODUzMjA5ODEwMjk3NTI1OTM2OTA5NzI1?uid=0&filename=KMQuake2_data-0.19.tar&content_type=application/x-tar&disposition=attachment"
+SRC_BASENAME="KMQuake2-SDL-${PV}_src_unix"
+DATA_BASENAME="KMQuake2_data-0.19"
 
 DESCRIPTION="Enhanced Quake 2 engine with Lazarus mod support"
 HOMEPAGE="http://qexpo2005.quakedev.com/booths.php?tag=knightmare
 	http://qudos.quakedev.com/"
-SRC_URI="${SOURCE_LINK} -> ${FILE_STEM}.tar.bz2
-	 ${DATA_LINK} -> ${DATA_STEM}.tar
+SRC_URI="https://github.com/downloads/v-fox/gentoo_overlay/${SRC_BASENAME}.tar.bz2
+	 https://github.com/downloads/v-fox/gentoo_overlay/${DATA_BASENAME}.tar
 	 http://www.markshan.com/knightmare/downloads/kmquake2_020_lvlshots_hi.zip"
 
 LICENSE="GPL-2"
