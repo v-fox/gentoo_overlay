@@ -36,7 +36,7 @@ CDEPEND="
 		>=media-libs/gstreamer-0.10:0.10
 		>=media-libs/gst-plugins-base-0.10:0.10
 	)
-	usb? ( dev-libs/libusb:1 )
+	usb? ( virtual/libusb:1 )
 "
 DEPEND="${CDEPEND}
 	>=dev-util/pkgconfig-0.20
