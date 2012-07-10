@@ -2,7 +2,7 @@
 # Distributed under the terms of the GNU General Public License v2
 # $Header: $
 
-inherit eutils games
+inherit eutils games unpacker
 
 # define own package name
 MY_PN="PenumbraCollection"
