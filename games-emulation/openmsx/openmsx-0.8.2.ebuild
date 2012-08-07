@@ -1,7 +1,7 @@
 # Copyright 1999-2008 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
 # $Header: $
-EAPI=3
+EAPI=4
 
 inherit eutils games
 
@@ -39,12 +39,12 @@ src_prepare() {
 		|| die "sed custom.mk failed"
 
 	sed -i -e 's/GPL.txt//' doc/node.mk || die
-	find share/extensions -type f -exec chmod -vx '{}' +
-		
+	find share/extensions -type f -exec chmod -x '{}' +
+
 	# fix breakage
-	epatch 	\
-		"${FILESDIR}/${P}"-zlib.patch \
-		"${FILESDIR}/${P}"-libpng15.patch
+	sed -i \
+		-e 's/^typedef void\* gzFile;$/#include <zlib.h>/' \
+		src/serialize.hh || die "zlib.h fix failed"
 }
 
 src_compile() {
@@ -61,7 +61,6 @@ src_install() {
 		INSTALL_DOC_DIR="${D}"/usr/share/doc/${PF} \
 		install || die "emake install failed"
 	dodoc README
-	prepalldocs
 	prepgamesdirs
 }
 
