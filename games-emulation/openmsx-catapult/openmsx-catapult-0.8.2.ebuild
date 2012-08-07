@@ -62,6 +62,6 @@ src_install() {
 		DESKTOP_HOOKS_DIR="${D}/usr/share/applications" \
 		install \
 		|| die "install failed"
-	dodoc AUTHORS ChangeLog README
+	dodoc ChangeLog README
 	prepgamesdirs
 }
