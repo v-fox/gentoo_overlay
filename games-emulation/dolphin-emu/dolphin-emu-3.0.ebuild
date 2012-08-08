@@ -38,7 +38,11 @@ RDEPEND=">=media-libs/glew-1.5
 DEPEND="${RDEPEND}
 	dev-util/cmake
 	dev-util/pkgconfig
-	media-gfx/nvidia-cg-toolkit"
+	<media-gfx/nvidia-cg-toolkit-3"
+
+src_prepare() {
+	sed -i 	-e "s:check_lib(SFML:\#check_lib(SFML:" CMakeLists.txt || die "sed failed"
+}
 
 src_configure() {
 	# filter problematic compiler flags
