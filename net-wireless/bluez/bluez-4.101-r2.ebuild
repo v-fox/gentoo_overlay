@@ -1,11 +1,11 @@
 # Copyright 1999-2012 Gentoo Foundation
 # Distributed under the terms of the GNU General Public License v2
-# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/bluez-4.101.ebuild,v 1.1 2012/06/23 11:46:55 pacho Exp $
+# $Header: /var/cvsroot/gentoo-x86/net-wireless/bluez/bluez-4.101-r2.ebuild,v 1.1 2012/08/10 08:48:24 ssuominen Exp $
 
 EAPI="4"
 PYTHON_DEPEND="test-programs? 2"
 
-inherit multilib eutils systemd python autotools
+inherit multilib eutils systemd python user autotools
 
 DESCRIPTION="Bluetooth Tools and System Daemons for Linux"
 HOMEPAGE="http://www.bluez.org/"
@@ -20,7 +20,7 @@ SRC_URI="mirror://kernel/linux/bluetooth/${P}.tar.xz
 LICENSE="GPL-2 LGPL-2.1"
 SLOT="0"
 KEYWORDS="~amd64 ~arm ~hppa ~ppc ~ppc64 ~x86"
-IUSE="alsa +consolekit cups debug gstreamer pcmcia test-programs usb readline"
+IUSE="alsa +consolekit cups debug gstreamer selinux pcmcia test-programs usb readline"
 
 CDEPEND="
 	>=dev-libs/glib-2.28:2
@@ -35,6 +35,7 @@ CDEPEND="
 		>=media-libs/gstreamer-0.10:0.10
 		>=media-libs/gst-plugins-base-0.10:0.10
 	)
+	selinux? ( sec-policy/selinux-bluetooth )
 	usb? ( virtual/libusb:0 )
 	readline? ( sys-libs/readline )
 "
@@ -123,7 +124,7 @@ src_install() {
 		dobin simple-agent simple-service monitor-bluetooth
 		newbin list-devices list-bluetooth-devices
 		rm test-textfile.{c,o} || die # bug #356529
-		for b in apitest hsmicro hsplay test-* ; do
+		for b in hsmicro hsplay test-* ; do
 			newbin "${b}" "bluez-${b}"
 		done
 		insinto /usr/share/doc/${PF}/test-services
@@ -140,7 +141,7 @@ src_install() {
 		network/network.conf \
 		serial/serial.conf
 
-	newinitd "${FILESDIR}/bluetooth-init.d-r1" bluetooth
+	newinitd "${FILESDIR}/bluetooth-init.d-r2" bluetooth
 	newinitd "${FILESDIR}/rfcomm-init.d" rfcomm
 	newconfd "${FILESDIR}/rfcomm-conf.d" rfcomm
 
@@ -152,7 +153,7 @@ src_install() {
 }
 
 pkg_postinst() {
-	udevadm control --reload-rules && udevadm trigger --subsystem-match=bluetooth
+	udevadm control --reload-rules
 
 	if ! has_version "net-dialup/ppp"; then
 		elog "To use dial up networking you must install net-dialup/ppp."
@@ -170,8 +171,7 @@ pkg_postinst() {
 
 	if [ "$(rc-config list default | grep bluetooth)" = "" ] ; then
 		elog "You will need to add bluetooth service to default runlevel"
-		elog "for getting your devices detected from startup without needing"
-		elog "to reconnect them. For that please run:"
+		elog "for getting your devices detected. For that please run:"
 		elog "'rc-update add bluetooth default'"
 	fi
 }
