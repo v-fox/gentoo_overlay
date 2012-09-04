@@ -70,6 +70,8 @@ pkg_setup() {
 }
 
 src_prepare() {
+	epatch "${FILESDIR}"/${P}-network{1,2,3,4}.patch
+
 	if ! use consolekit; then
 		# No consolekit for at_console etc, so we grant plugdev the rights
 		epatch	"${FILESDIR}/bluez-plugdev.patch"
@@ -90,6 +92,7 @@ src_configure() {
 	use readline || export ac_cv_header_readline_readline_h=no
 
 	econf \
+		--disable-silent-rules \
 		--enable-hid2hci \
 		--enable-audio \
 		--enable-bccmd \
