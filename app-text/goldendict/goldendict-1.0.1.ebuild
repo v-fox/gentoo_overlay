@@ -20,7 +20,6 @@ RUPACK="enruen-content"
 RUPACK_V="1.1"
 MORPH_V="1.0"
 
-inherit qt4
 DESCRIPTION="GoldenDict is a feature-rich dictionary lookup program."
 HOMEPAGE="http://goldendict.org"
 LICENSE="GPL-3"
