@@ -83,7 +83,7 @@ src_prepare() {
 			Makefile.tools Makefile.in || die
 	fi
 
-	# sixaxis/dualshock3 support from fedora (http://pkgs.fedoraproject.org/gitweb/?p=bluez.git;a=tree)
+	# sixaxis/dualshock3 support from fedora (http://pkgs.fedoraproject.org/cgit/bluez.git/tree/)
 	epatch "${FILESDIR}/${PN}"-fedora*.patch
 	eautoreconf
 }
@@ -113,6 +113,9 @@ src_configure() {
 		$(use_enable pcmcia) \
 		$(use_enable test-programs test) \
 		$(use_enable usb) \
+		$(use_enable deprecated dund) \
+		$(use_enable deprecated hidd) \
+		$(use_enable deprecated pand) \
 		--enable-health \
 		--enable-maemo6 \
 		--enable-pnat \
@@ -140,6 +143,13 @@ src_install() {
 		cd "${S}"
 	fi
 
+	if use deprecated; then
+		newconfd "${FILESDIR}/conf.d-hidd" hidd
+		newinitd "${FILESDIR}/init.d-hidd" hidd
+		newconfd "${FILESDIR}/conf.d-dund" dund
+		newinitd "${FILESDIR}/init.d-dund" dund
+	fi	
+
 	insinto /etc/bluetooth
 	doins \
 		input/input.conf \
@@ -163,6 +173,14 @@ pkg_postinst() {
 
 	if ! has_version "net-dialup/ppp"; then
 		elog "To use dial up networking you must install net-dialup/ppp."
+	fi
+
+	if use deprecated; then
+		elog "dund and hidd init scripts were installed because you have the old-daemons"
+		elog "use flag on. They are not started by default via udev so please add them"
+		elog "to the required runlevels using rc-update <runlevel> add <dund/hidd>. If"
+		elog "you need init scripts for the other daemons, please file requests"
+		elog "to https://bugs.gentoo.org."
 	fi
 
 	if use consolekit; then
