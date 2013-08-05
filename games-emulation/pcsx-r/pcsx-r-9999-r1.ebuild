@@ -43,10 +43,6 @@ src_prepare() {
 		|| die "sed failed"
 	done
 
-	# fix icon and .desktop path
-	epatch "${FILESDIR}/${PN}-datadir.patch" \
-		"${FILESDIR}/${PN}-implicit-declaration.patch"
-
 	# regenerate for changes to spread
 	eautoreconf
 }

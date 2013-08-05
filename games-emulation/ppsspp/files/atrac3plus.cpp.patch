@@ -1,0 +1,11 @@
+--- atrac3plus.cpp	2013-08-03 22:40:14.663448243 +0100
++++ atrac3plus.cpp.patched	2013-08-03 22:40:32.309447521 +0100
+@@ -89,7 +89,7 @@
+ 	}
+ 
+ 	bool IsInstalled() {
+-		return File::Exists(GetInstalledFilename());
++		return true;
+ 	}
+ 
+ 	bool DoAutoInstall() {

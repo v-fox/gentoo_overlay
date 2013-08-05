@@ -1,0 +1,29 @@
+--- Makefile	2013-08-01 00:34:33.562128547 +0100
++++ Makefile.patched	2013-08-01 00:37:38.215120988 +0100
+@@ -1,6 +1,6 @@
+ outdir=../output
+ 
+-target=$(outdir)/libMaiAT3PlusDecoder.a
++target=$(outdir)/libMaiAT3PlusDecoder.so
+ 
+ objs=$(outdir)/Heap_Alloc0.o\
+ 	$(outdir)/MaiFile.o\
+@@ -18,16 +18,14 @@
+ 	$(outdir)/MaiAT3PlusCoreDecoder_StaticData.o\
+ 	$(outdir)/MaiAT3PlusCoreDecoder_SubFunc.o\
+ 	$(outdir)/MaiAT3PlusFrameDecoder.o\
+-	$(outdir)/MaiBitReader.o\
+-	$(outdir)/MaiBitReader.o\
+ 
+ hs=
+ 
+ 
+-Mai_CXX_O=g++ -O2 -c "-I../include" -fno-exceptions -fno-rtti
++Mai_CXX_O=g++ -fpic -O2 -c "-I../include" -fno-exceptions -fno-rtti
+ 
+ Mai_RM_O=rm -f
+-Mai_AR_O=ar -rcv
++Mai_AR_O=g++ -shared -o
+ 
+ all : $(target)
+ 

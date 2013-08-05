@@ -1,0 +1,12 @@
+--- MaiFile.cc	2013-07-31 22:28:03.753439252 +0100
++++ MaiFile.cc.new	2013-07-31 22:29:52.445434803 +0100
+@@ -341,8 +341,7 @@
+ 	Mai_I64 fpn;
+ 	fpn = this->getFilePointer();
+ 
+-	//if (!::ftruncate64(file0, newLength))
+-	if (!::syscall(__NR_ftruncate64, file0, newLength))
++	if (!::ftruncate64(file0, newLength))
+ 	{
+ 		this->seek(fpn);
+ 		return 0;
