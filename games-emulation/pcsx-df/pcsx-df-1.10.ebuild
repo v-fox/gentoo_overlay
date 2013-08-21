@@ -13,7 +13,7 @@ SLOT="0"
 KEYWORDS="~x86 ~amd64 ~ppc"
 IUSE="alsa nls bin_image opengl gnome"
 
-DEPEND="x11-libs/gtk+:2
+DEPEND="x11-libs/gtk+
 	x11-proto/videoproto
 	gnome-base/libglade
 	dev-lang/nasm
