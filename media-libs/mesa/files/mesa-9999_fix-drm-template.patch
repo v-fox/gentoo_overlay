@@ -1,8 +1,0 @@
---- Makefile.template	2009-04-24 04:07:50.545865359 +0600
-+++ Makefile.template_new	2009-04-24 04:21:31.781098439 +0600
-@@ -121,4 +121,4 @@
- 	$(INSTALL) -m 755 $(LIBNAME) $(DESTDIR)$(DRI_DRIVER_INSTALL_DIR)
- 
- 
--include depend
-+sinclude depend
