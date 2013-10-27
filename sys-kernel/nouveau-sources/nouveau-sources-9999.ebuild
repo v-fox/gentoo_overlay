@@ -11,6 +11,7 @@ inherit git-2
 DESCRIPTION="Patched kernel containing the latest nouveau sources"
 HOMEPAGE="nouveau.freedesktop.org"
 EGIT_REPO_URI="git://anongit.freedesktop.org/nouveau/linux-2.6"
+EGIT_BRANCH="drm-nouveau-next"
 
 LICENSE="GPL"
 SLOT="0"
