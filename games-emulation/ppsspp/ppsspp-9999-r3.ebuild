@@ -14,13 +14,12 @@ SRC_URI=""
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~amd64 ~x86"
-IUSE="atrac qt4 sdl"
+IUSE="qt4 sdl"
 
 RDEPEND=""
 DEPEND="sys-libs/zlib
 	sdl? ( media-libs/libsdl )
 	sdl? ( dev-util/cmake )
-	atrac? ( media-libs/maiat3plusdec )
 	qt4? ( dev-qt/qtcore )
 	qt4? ( dev-qt/qtgui )
 	qt4? ( dev-qt/qtmultimedia )
@@ -56,12 +55,6 @@ src_configure() {
 	else
 		cmake-utils_src_configure
 	fi
-	if use atrac ; then
-		# If we are using a atrac+ encoder we need to patch the code
-		# as PPSSPP's library autodetection does not work on linux
-		cd "${WORKDIR}"/"${P}"/Core/HW
-		epatch "${FILESDIR}"/atrac3plus.cpp.patch
-	fi
 }
 
 src_compile() {
@@ -89,3 +82,4 @@ src_install() {
 		doins -r "${WORKDIR}"/"${P}"/lang
 	fi
 }
+
