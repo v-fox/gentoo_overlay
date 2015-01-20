@@ -71,12 +71,12 @@ src_install() {
 		into "${D}"/usr/games
 		dobin "${FILESDIR}"/ppssppqt
 		exeinto "${D}"/usr/share/games/"${PN}"
-		doexe "${WORKDIR}"/"${P}"/Qt/PPSSPPQt
+		newexe "${WORKDIR}"/"${P}"/Qt/ppsspp PPSSPPQt
 	else
 		into "${D}"/usr/games
 		dobin "${FILESDIR}"/ppssppsdl
 		exeinto "${D}"/usr/share/games/"${PN}"
-		doexe "${WORKDIR}"/"${P}"_build/PPSSPPSDL
+		newexe "${WORKDIR}"/"${P}"_build/ppsspp PPSSPPSDL
 		insinto "${D}"/usr/share/games/"${PN}"
 		doins -r "${WORKDIR}"/"${P}"_build/assets
 		doins -r "${WORKDIR}"/"${P}"/lang
