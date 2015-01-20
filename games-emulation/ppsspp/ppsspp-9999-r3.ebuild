@@ -8,6 +8,7 @@ inherit eutils cmake-utils qt4-r2 git-2
 
 DESCRIPTION="A PSP emulator for Android, Windows, Mac, Linux and Blackberry 10, written in C++."
 HOMEPAGE="http://www.ppsspp.org/"
+EGIT_HAS_SUBMODULES=1
 EGIT_REPO_URI="git://github.com/hrydgard/ppsspp.git"
 SRC_URI=""
 
@@ -38,7 +39,6 @@ src_unpack() {
 }
 	
 src_prepare() {
-	git submodule update --init
 	if use qt4 ; then
 		cd "${WORKDIR}"/"${P}"/Qt
 		qt4-r2_src_prepare
