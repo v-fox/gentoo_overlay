@@ -76,7 +76,7 @@ src_install() {
 		into "${D}"/usr/games
 		dobin "${FILESDIR}"/ppssppsdl
 		exeinto "${D}"/usr/share/games/"${PN}"
-		newexe "${WORKDIR}"/"${P}"_build/ppsspp PPSSPPSDL
+		doexe "${WORKDIR}"/"${P}"_build/PPSSPPSDL
 		insinto "${D}"/usr/share/games/"${PN}"
 		doins -r "${WORKDIR}"/"${P}"_build/assets
 		doins -r "${WORKDIR}"/"${P}"/lang
