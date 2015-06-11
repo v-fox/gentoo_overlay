@@ -4,11 +4,10 @@
 
 EAPI=5
 
-inherit eutils cmake-utils qt4-r2 git-2
+inherit eutils cmake-utils qt4-r2 git-r3
 
 DESCRIPTION="A PSP emulator for Android, Windows, Mac, Linux and Blackberry 10, written in C++."
 HOMEPAGE="http://www.ppsspp.org/"
-EGIT_HAS_SUBMODULES=1
 EGIT_REPO_URI="git://github.com/hrydgard/ppsspp.git"
 SRC_URI=""
 
@@ -29,7 +28,8 @@ DEPEND="sys-libs/zlib
 	qt4? ( dev-qt/qt-mobility[multimedia] )"
 
 src_unpack() {
-	git-2_src_unpack
+	git-r3_fetch
+	git-r3_checkout
 	if use qt4 ; then
 		cd "${WORKDIR}"/"${P}"/Qt
 		qt4-r2_src_unpack
@@ -37,7 +37,7 @@ src_unpack() {
 		cmake-utils_src_unpack
 	fi
 }
-	
+
 src_prepare() {
 	if use qt4 ; then
 		cd "${WORKDIR}"/"${P}"/Qt
