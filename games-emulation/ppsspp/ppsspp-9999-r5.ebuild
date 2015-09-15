@@ -19,6 +19,7 @@ IUSE="qt4 sdl"
 RDEPEND=""
 DEPEND="sys-libs/zlib
 	sdl? ( media-libs/libsdl )
+	sdl? ( media-libs/libsdl2 )
 	sdl? ( dev-util/cmake )
 	qt4? ( dev-qt/qtcore )
 	qt4? ( dev-qt/qtgui )
