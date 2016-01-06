@@ -37,8 +37,6 @@ src_unpack() {
 	if use qt4 ; then
 		cd "${WORKDIR}"/"${P}"/Qt
 		qt4-r2_src_unpack
-	else
-		cmake-utils_src_unpack
 	fi
 }
 
