@@ -9,12 +9,12 @@ inherit eutils cmake-utils qt4-r2 git-r3
 DESCRIPTION="A PSP emulator for Android, Windows, Mac, Linux and Blackberry 10, written in C++."
 HOMEPAGE="http://www.ppsspp.org/"
 EGIT_REPO_URI="git://github.com/hrydgard/ppsspp.git"
-SRC_URI=""
+SRC_URI="http://www.ppsspp.org/img/ppsspp-icon.png"
 
 LICENSE="GPL-2"
 SLOT="0"
 KEYWORDS="~amd64 ~x86"
-IUSE="qt4 -sdl"
+IUSE="-qt4 sdl"
 REQUIRED_USE="
 	?? ( qt4 sdl )
 "
@@ -38,6 +38,7 @@ src_unpack() {
 		cd "${WORKDIR}"/"${P}"/Qt
 		qt4-r2_src_unpack
 	fi
+	cp /usr/portage/distfiles/ppsspp-icon.png  "${WORKDIR}"/"${P}"/
 }
 
 src_prepare() {
@@ -89,5 +90,6 @@ src_install() {
 		doins -r "${WORKDIR}"/"${P}"_build/assets
 		doins -r "${WORKDIR}"/"${P}"/lang
 	fi
+	insinto /usr/share/icons/
+        newins "${WORKDIR}"/"${P}"/ppsspp-icon.png ppsspp-icon.png
 }
-
