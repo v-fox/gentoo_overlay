@@ -15,7 +15,7 @@ ESVN_REPO_URI="http://pcsx2.googlecode.com/svn/trunk"
 ESVN_PROJECT="pcsx2-read-only"
 LICENSE="GPL-2"
 SLOT="0"
-KEYWORDS="~amd64 ~x86 ~ppc ~ppc64"
+KEYWORDS=""
 IUSE="debug oss mmx sse +sse2 sse3 sse4 +standalone custom-cflags"
 
 PLUGINS="games-emulation/ps2emu-cddvdlinuz
