@@ -18,7 +18,7 @@ EGIT_REPO_URI="git://git.savannah.gnu.org/gnash.git"
 
 LICENSE="GPL-3"
 SLOT="0"
-KEYWORDS="amd64 ~ppc ~ppc64 ~sparc x86"
+KEYWORDS=""
 IUSE="X +agg cairo cygnal dbus directfb doc dump egl fbcon +ffmpeg gconf gnome gstreamer gtk harden jemalloc kde lirc mysql +nls nsplugin opengl openvg python sdl +sdl-sound ssh ssl test vaapi"
 REQUIRED_USE="dump? ( agg ffmpeg )
 	fbcon? ( agg )

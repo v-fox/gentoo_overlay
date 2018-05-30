@@ -13,7 +13,7 @@ SRC_URI="http://www.ppsspp.org/img/ppsspp-icon.png"
 
 LICENSE="GPL-2"
 SLOT="0"
-KEYWORDS="~amd64 ~x86"
+KEYWORDS=""
 IUSE="-qt4 sdl"
 REQUIRED_USE="
 	?? ( qt4 sdl )

@@ -15,7 +15,7 @@ EGIT_BRANCH="drm-nouveau-next"
 
 LICENSE="GPL"
 SLOT="0"
-KEYWORDS="~amd64"
+KEYWORDS=""
 
 IUSE=""
 REQUIRED_USE=""

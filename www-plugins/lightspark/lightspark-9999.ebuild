@@ -10,7 +10,7 @@ HOMEPAGE="http://lightspark.sourceforge.net/"
 EGIT_REPO_URI="https://github.com/lightspark/lightspark.git"
 LICENSE="LGPL-3"
 SLOT="0"
-KEYWORDS="~amd64 ~x86"
+KEYWORDS=""
 IUSE="curl ffmpeg gles nsplugin profile pulseaudio rtmp sdl"
 
 RDEPEND=">=dev-cpp/libxmlpp-2.33.1:2.6
